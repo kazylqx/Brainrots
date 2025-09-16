@@ -39,15 +39,6 @@ class Database {
             )
         `);
 
-        // Adicionar coluna channel_id se não existir (para compatibilidade)
-        this.db.run(`
-            ALTER TABLE products ADD COLUMN channel_id TEXT
-        `, (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-                console.error('❌ Erro ao adicionar coluna channel_id:', err.message);
-            }
-        });
-
         // Tabela de cupons
         this.db.run(`
             CREATE TABLE IF NOT EXISTS coupons (
@@ -127,15 +118,6 @@ class Database {
                 FOREIGN KEY (cart_id) REFERENCES carts (id)
             )
         `);
-
-        // Adicionar coluna payment_data se não existir (para compatibilidade)
-        this.db.run(`
-            ALTER TABLE sales ADD COLUMN payment_data TEXT
-        `, (err) => {
-            if (err && !err.message.includes('duplicate column')) {
-                console.error('❌ Erro ao adicionar coluna payment_data:', err.message);
-            }
-        });
 
         // Tabela de configurações
         this.db.run(`
