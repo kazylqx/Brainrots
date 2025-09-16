@@ -1,5 +1,5 @@
 services:
-  - type: web
+  - type: worker
     name: doubebot-discord
     env: node
     plan: free
