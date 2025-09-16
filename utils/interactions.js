@@ -33,33 +33,37 @@ class InteractionHandler {
                 return;
             }
 
-        // Button interactions
-        if (interaction.isButton()) {
-            if (customId.startsWith('admin_')) {
-                await this.handleAdminInteraction(interaction);
-            } else if (customId.startsWith('product_')) {
-                await this.handleProductInteraction(interaction);
-            } else if (customId.startsWith('cart_')) {
-                await this.handleCartInteraction(interaction);
-            } else if (customId.startsWith('payment_')) {
-                await this.handlePaymentInteraction(interaction);
-            } else if (customId.startsWith('ticket_')) {
-                await this.handleTicketInteraction(interaction);
+            // Button interactions
+            if (interaction.isButton()) {
+                if (customId.startsWith('admin_')) {
+                    await this.handleAdminInteraction(interaction);
+                } else if (customId.startsWith('product_')) {
+                    await this.handleProductInteraction(interaction);
+                } else if (customId.startsWith('cart_')) {
+                    await this.handleCartInteraction(interaction);
+                } else if (customId.startsWith('payment_')) {
+                    await this.handlePaymentInteraction(interaction);
+                } else if (customId.startsWith('ticket_')) {
+                    await this.handleTicketInteraction(interaction);
+                }
             }
-        }
 
         } catch (error) {
             console.error('❌ Erro ao processar interação:', error);
             
             const errorMessage = {
                 embeds: [Helpers.createErrorEmbed('❌ Ocorreu um erro interno. Tente novamente.')],
-                ephemeral: true
+                flags: 64
             };
             
-            if (interaction.replied || interaction.deferred) {
-                await interaction.followUp(errorMessage);
-            } else {
-                await interaction.reply(errorMessage);
+            try {
+                if (interaction.replied || interaction.deferred) {
+                    await interaction.followUp(errorMessage);
+                } else {
+                    await interaction.reply(errorMessage);
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder interação:', replyError);
             }
         }
     }
@@ -141,7 +145,9 @@ class InteractionHandler {
 
         // Defer reply para operações que podem demorar
         if (['buy-now', 'details', 'add-to-cart', 'checkout'].includes(action)) {
-            await interaction.deferReply({ ephemeral: true });
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true });
+            }
         }
 
         switch (action) {
@@ -2600,10 +2606,10 @@ class InteractionHandler {
         
         try {
             // Marcar venda como cancelada
-            await Database.db.run('UPDATE sales SET payment_status = ? WHERE id = ?', ['cancelled', saleId]);
+            await Database.updateSaleStatus(saleId, 'cancelled');
             
             // Marcar carrinho como cancelado
-            const sale = await Database.db.get('SELECT cart_id FROM sales WHERE id = ?', [saleId]);
+            const sale = await Database.getSale(saleId);
             if (sale) {
                 await Database.updateCartStatus(sale.cart_id, 'cancelled');
             }
@@ -2745,59 +2751,40 @@ class InteractionHandler {
             console.error('❌ Erro ao reenviar produto:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao reenviar produto!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
 
-    // Comprar agora (bypass do carrinho)
+    // Compra direta
     static async buyNow(interaction, productId) {
         try {
             const product = await Database.getProductById(productId);
             if (!product || !product.active) {
-                return await interaction.editReply({
-                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
-                });
-            }
-
-            if (product.stock <= 0) {
-                return await interaction.editReply({
-                    embeds: [Helpers.createErrorEmbed('❌ Produto fora de estoque!')]
-                });
+                const errorMessage = { embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')] };
+                
+                if (interaction.deferred) {
+                    return await interaction.editReply(errorMessage);
+                } else {
+                    return await interaction.reply({ ...errorMessage, flags: 64 });
+                }
             }
 
             // Criar carrinho temporário
-            const cartId = Helpers.generateUUID();
-            const expiresAt = Helpers.calculateExpirationDate(1); // 1 hora para compra direta
-            
-            await Database.createCart({
-                id: cartId,
-                user_id: interaction.user.id,
-                channel_id: null,
-                expires_at: expiresAt.toISOString()
-            });
+            const cartId = await Database.createCart(interaction.user.id);
+            await Database.addToCart(cartId, productId, 1);
 
-            // Adicionar produto ao carrinho
-            await Database.addCartItem(cartId, productId, 1, product.price);
-            await Database.updateCartTotal(cartId, product.price);
-
-            // Processar checkout diretamente
-            const cart = await Database.getCart(cartId);
-            
-            // Chamar processCheckout com o carrinho criado
-            await this.processCheckoutDirect(interaction, cart, product);
+            // Processar checkout
+            await this.processCheckout(interaction, cartId);
 
         } catch (error) {
             console.error('❌ Erro na compra direta:', error);
+            const errorMessage = { embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')] };
+            
             if (interaction.deferred) {
-                await interaction.editReply({
-                    embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')]
-                });
+                await interaction.editReply(errorMessage);
             } else {
-                await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')],
-                    flags: 64
-                });
+                await interaction.reply({ ...errorMessage, flags: 64 });
             }
         }
     }
