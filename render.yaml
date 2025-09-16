@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: doubebot-discord
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GUILD_ID
+        sync: false
+      - key: PIX_KEY
+        sync: false
+      - key: PIX_NAME
+        sync: false
+      - key: PIX_CITY
+        sync: false
+      - key: OWNER_ROLE_ID
+        sync: false
+      - key: CART_CATEGORY_ID
+        sync: false
+      - key: LOG_CHANNEL_ID
+        sync: false
+      - key: CART_EXPIRATION_HOURS
+        value: "24"
+      - key: CLIENT_ROLE_ID
+        sync: false
