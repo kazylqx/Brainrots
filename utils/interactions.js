@@ -2784,7 +2784,16 @@ class InteractionHandler {
             }
 
             // Criar carrinho temporário
-            const cartId = await Database.createCart(interaction.user.id);
+            const cartId = Helpers.generateUUID();
+            const expiresAt = Helpers.calculateExpirationDate(parseInt(process.env.CART_EXPIRATION_HOURS) || 24);
+            
+            await Database.createCart({
+                id: cartId,
+                user_id: interaction.user.id,
+                channel_id: null,
+                expires_at: expiresAt
+            });
+            
             await Database.addToCart(cartId, productId, 1);
 
             // Processar checkout
@@ -2792,12 +2801,17 @@ class InteractionHandler {
 
         } catch (error) {
             console.error('❌ Erro na compra direta:', error);
-            const errorMessage = { embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')] };
             
-            if (interaction.deferred) {
-                await interaction.editReply(errorMessage);
-            } else {
-                await interaction.reply({ ...errorMessage, flags: 64 });
+            try {
+                const errorMessage = { embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')] };
+                
+                if (interaction.deferred) {
+                    await interaction.editReply(errorMessage);
+                } else if (!interaction.replied) {
+                    await interaction.reply({ ...errorMessage, flags: 64 });
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro de compra:', replyError);
             }
         }
     }
