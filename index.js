@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('./utils/database');
 
-// Criar instância do
+// Criar instância do Discord client
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -18,9 +18,6 @@ const client = new Client({
 
 // Coleções para comandos e eventos
 client.commands = new Collection();
-
-// Inicializar banco de dados (função async será chamada no ready)
-// Database.init();
 
 // Criar servidor Express para health check (necessário para Render)
 const app = express();
@@ -116,7 +113,7 @@ client.once('ready', async () => {
     console.log(`📊 Conectado em ${client.guilds.cache.size} servidor(es)`);
     
     // Inicializar banco de dados
-    await Database.init();
+    Database.init();
     
     // Registrar comandos
     await deployCommands();
@@ -124,8 +121,6 @@ client.once('ready', async () => {
     // Definir status do bot
     client.user.setActivity('🛒 Vendas | /painel', { type: 'WATCHING' });
 });
-
-// Handler para interações (comandos slash, botões, etc) - removido para evitar duplicação
 
 // Handler para erros não capturados
 process.on('unhandledRejection', error => {
