@@ -13,7 +13,7 @@ class InteractionHandler {
             if (customId.startsWith('admin_') && !Helpers.hasOwnerPermission(interaction.member)) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Você não tem permissão para usar este comando!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -91,14 +91,14 @@ class InteractionHandler {
             } else {
                 await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Modal não reconhecido!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
         } catch (error) {
             console.error('❌ Erro ao processar modal:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao processar formulário!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -149,7 +149,7 @@ class InteractionHandler {
         let shouldDefer = ['buy-now', 'details', 'add-to-cart', 'checkout'].includes(action);
         if (shouldDefer && !interaction.deferred && !interaction.replied) {
             try {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: 64 });
             } catch (error) {
                 console.log('⚠️ Erro ao defer reply (já foi processado):', error.message);
             }
@@ -522,51 +522,20 @@ class InteractionHandler {
         }
     }
 
-    // Notificar quando estoque acabar
+    // Notificar quando estoque acabar (DESABILITADO - causava conflitos)
     static async notifyStockOut(product) {
         try {
-            const webhookUrl = process.env.STOCK_WEBHOOK_URL;
-            if (!webhookUrl) {
-                console.log('❌ STOCK_WEBHOOK_URL não configurada');
-                return;
-            }
-
-            const { WebhookClient } = require('discord.js');
-            const webhook = new WebhookClient({ url: webhookUrl });
-
-            const embed = new EmbedBuilder()
-                .setColor(0xe74c3c)
-                .setTitle('🚨 ESTOQUE ESGOTADO!')
-                .setDescription(`@everyone\n\nO produto **${product.name}** está com estoque **ZERADO**!`)
-                .addFields([
-                    {
-                        name: '📦 Produto',
-                        value: product.name,
-                        inline: true
-                    },
-                    {
-                        name: '💰 Preço',
-                        value: `R$ ${parseFloat(product.price).toFixed(2).replace('.', ',')}`,
-                        inline: true
-                    },
-                    {
-                        name: '📊 Estoque Atual',
-                        value: '**0 unidades**',
-                        inline: true
-                    }
-                ])
-                .setFooter({ text: 'Reponha o estoque o quanto antes!' })
-                .setTimestamp();
-
-            await webhook.send({
-                content: '@everyone',
-                embeds: [embed]
-            });
-
-            console.log(`🚨 Notificação de estoque esgotado enviada para: ${product.name}`);
+            // Webhook desabilitado para evitar conflitos de interação
+            console.log(`⚠️ Estoque esgotado: ${product.name} (ID: ${product.id})`);
+            
+            // TODO: Implementar notificação via canal Discord ao invés de webhook
+            // const channel = client.channels.cache.get(process.env.STOCK_NOTIFICATION_CHANNEL_ID);
+            // if (channel) {
+            //     await channel.send(`⚠️ **Estoque Esgotado!** O produto **${product.name}** está sem estoque.`);
+            // }
 
         } catch (error) {
-            console.error('❌ Erro ao enviar notificação de estoque:', error);
+            console.error('❌ Erro ao processar notificação de estoque:', error);
         }
     }
 
@@ -1077,10 +1046,21 @@ class InteractionHandler {
             });
         } catch (error) {
             console.error('❌ Erro ao mostrar menu de produtos:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar produtos!')],
-                flags: 64
-            });
+            
+            try {
+                const errorMessage = {
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar produtos!')],
+                    flags: 64
+                };
+                
+                if (interaction.deferred) {
+                    await interaction.editReply(errorMessage);
+                } else if (!interaction.replied) {
+                    await interaction.reply(errorMessage);
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro:', replyError);
+            }
         }
     }
 
@@ -1166,14 +1146,14 @@ class InteractionHandler {
                             .setEmoji('💳')
                     )
                 ],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao adicionar ao carrinho:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao adicionar produto ao carrinho!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -1186,7 +1166,7 @@ class InteractionHandler {
             if (!cart) {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('🛒 Seu carrinho está vazio!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -1195,7 +1175,7 @@ class InteractionHandler {
             if (cartItems.length === 0) {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('🛒 Seu carrinho está vazio!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -1246,14 +1226,14 @@ class InteractionHandler {
                             .setEmoji('🗑️')
                     )
                 ],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao visualizar carrinho:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar carrinho!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -1263,7 +1243,7 @@ class InteractionHandler {
         try {
             // Verificar se a interação já foi deferida, se não, deferir agora
             if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferReply({ ephemeral: true });
+                await interaction.deferReply({ flags: 64 });
             }
 
             // Se cartId foi fornecido (compra direta), usar ele, senão buscar carrinho do usuário
@@ -1491,14 +1471,14 @@ class InteractionHandler {
             if (!sale) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
             if (sale.payment_status === 'completed') {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('⚠️ Esta venda já foi confirmada!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -1534,7 +1514,7 @@ class InteractionHandler {
             console.error('❌ Erro ao mostrar modal de confirmação:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao abrir formulário de confirmação!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -1731,7 +1711,7 @@ class InteractionHandler {
             if (sales.length === 0) {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('📊 Nenhuma venda encontrada!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -1748,14 +1728,14 @@ class InteractionHandler {
                     description: salesText,
                     footer: { text: 'Últimas 20 vendas' }
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao buscar vendas:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar histórico!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -1796,7 +1776,7 @@ class InteractionHandler {
                 ],
                 footer: { text: 'Configure essas opções no arquivo .env' }
             }],
-            ephemeral: true
+            flags: 64
         });
     }
 
@@ -1822,7 +1802,7 @@ class InteractionHandler {
             console.error('❌ Modal não reconhecido:', interaction.customId);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao processar formulário!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -2362,10 +2342,21 @@ class InteractionHandler {
 
         } catch (error) {
             console.error('❌ Erro ao excluir produto:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao excluir produto!')],
-                flags: 64
-            });
+            
+            try {
+                const errorMessage = {
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao excluir produto!')],
+                    flags: 64
+                };
+                
+                if (interaction.deferred) {
+                    await interaction.editReply(errorMessage);
+                } else if (!interaction.replied) {
+                    await interaction.reply(errorMessage);
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro de exclusão:', replyError);
+            }
         }
     }
 
@@ -2411,7 +2402,7 @@ class InteractionHandler {
             if (!cart) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Carrinho não encontrado!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -2419,7 +2410,7 @@ class InteractionHandler {
             if (!coupon) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Cupom inválido ou expirado!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -2444,14 +2435,14 @@ class InteractionHandler {
                     ],
                     timestamp: new Date().toISOString()
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao aplicar cupom:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao aplicar cupom!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -2463,7 +2454,7 @@ class InteractionHandler {
             if (!cart) {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('🛒 Carrinho não encontrado!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -2477,14 +2468,14 @@ class InteractionHandler {
                     description: 'Todos os itens foram removidos do seu carrinho.',
                     timestamp: new Date().toISOString()
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao limpar carrinho:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao limpar carrinho!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -2496,7 +2487,7 @@ class InteractionHandler {
             if (!cart) {
                 return await interaction.reply({
                     embeds: [Helpers.createWarningEmbed('🛒 Carrinho não encontrado!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -2510,41 +2501,18 @@ class InteractionHandler {
                     description: 'O item foi removido do seu carrinho.',
                     timestamp: new Date().toISOString()
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao remover item do carrinho:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao remover item do carrinho!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
 
-    // Processar exclusão de produto
-    static async processDeleteProduct(interaction, productId) {
-        try {
-            await Database.deleteProduct(productId);
-
-            await interaction.reply({
-                embeds: [{
-                    color: 0x2ecc71,
-                    title: '✅ Produto Excluído!',
-                    description: `Produto foi removido com sucesso do catálogo.`,
-                    timestamp: new Date().toISOString()
-                }],
-                ephemeral: true
-            });
-
-        } catch (error) {
-            console.error('❌ Erro ao excluir produto:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao excluir produto!')],
-                ephemeral: true
-            });
-        }
-    }
 
     // Modal para gerenciar estoque
     static async showStockModal(interaction, product) {
@@ -2575,7 +2543,7 @@ class InteractionHandler {
         if (isNaN(newStock) || newStock < 0) {
             return await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Estoque deve ser um número válido!')],
-                ephemeral: true
+                flags: 64
             });
         }
 
@@ -2589,14 +2557,14 @@ class InteractionHandler {
                     description: `Estoque atualizado para **${newStock}** unidades.`,
                     timestamp: new Date().toISOString()
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
             console.error('❌ Erro ao atualizar estoque:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao atualizar estoque!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -2637,7 +2605,7 @@ class InteractionHandler {
             console.error('❌ Erro ao cancelar pagamento:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao cancelar pagamento!')],
-                ephemeral: true
+                flags: 64
             });
         }
     }
@@ -2731,7 +2699,7 @@ class InteractionHandler {
             if (!sale || sale.payment_status !== 'completed') {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada ou não foi paga!')],
-                    ephemeral: true
+                    flags: 64
                 });
             }
 
@@ -2745,7 +2713,7 @@ class InteractionHandler {
                     description: 'O produto foi reenviado com sucesso.',
                     timestamp: new Date().toISOString()
                 }],
-                ephemeral: true
+                flags: 64
             });
 
         } catch (error) {
