@@ -331,6 +331,10 @@ class Database {
     }
 
     async getCoupon(code) {
+        if (this.useSupabase) {
+            return await this.supabase.getCoupon(code);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get(`
                 SELECT * FROM coupons 
@@ -348,6 +352,10 @@ class Database {
     }
 
     async useCoupon(code) {
+        if (this.useSupabase) {
+            return await this.supabase.useCoupon(code);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE coupons SET current_uses = current_uses + 1 WHERE code = ?', [code], function(err) {
                 if (err) {
@@ -526,6 +534,90 @@ class Database {
                     reject(err);
                 } else {
                     resolve(rows);
+                }
+            });
+        });
+    }
+
+    async removeCartItem(cartId, productId) {
+        if (this.useSupabase) {
+            return await this.supabase.removeCartItem(cartId, productId);
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.db.run('DELETE FROM cart_items WHERE cart_id = ? AND product_id = ?', [cartId, productId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes);
+                }
+            });
+        });
+    }
+
+    async clearCartItems(cartId) {
+        if (this.useSupabase) {
+            return await this.supabase.clearCartItems(cartId);
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.db.run('DELETE FROM cart_items WHERE cart_id = ?', [cartId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes);
+                }
+            });
+        });
+    }
+
+    async applyCouponToCart(cartId, couponCode, newTotal) {
+        if (this.useSupabase) {
+            return await this.supabase.applyCouponToCart(cartId, couponCode, newTotal);
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.db.run('UPDATE carts SET coupon_code = ?, total_amount = ? WHERE id = ?', [couponCode, newTotal, cartId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes);
+                }
+            });
+        });
+    }
+
+    async createRoleAssignment(userId, roleId, guildId, expiresAt) {
+        if (this.useSupabase) {
+            return await this.supabase.createRoleAssignment(userId, roleId, guildId, expiresAt);
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.db.run(`
+                INSERT INTO role_assignments (user_id, role_id, guild_id, expires_at)
+                VALUES (?, ?, ?, ?)
+            `, [userId, roleId, guildId, expiresAt], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.lastID);
+                }
+            });
+        });
+    }
+
+    async completeSalePayment(saleId, paymentData) {
+        if (this.useSupabase) {
+            return await this.supabase.completeSalePayment(saleId, paymentData);
+        }
+        
+        return new Promise((resolve, reject) => {
+            this.db.run('UPDATE sales SET payment_status = ?, payment_data = ? WHERE id = ?', 
+                ['completed', paymentData, saleId], function(err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve(this.changes);
                 }
             });
         });
@@ -727,6 +819,10 @@ class Database {
 
     // Métodos para configurações
     async setSetting(key, value) {
+        if (this.useSupabase) {
+            return await this.supabase.setSetting(key, value);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run(`
                 INSERT OR REPLACE INTO settings (key, value, updated_at)
@@ -742,6 +838,10 @@ class Database {
     }
 
     async getSetting(key) {
+        if (this.useSupabase) {
+            return await this.supabase.getSetting(key);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
                 if (err) {

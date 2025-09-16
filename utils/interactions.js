@@ -186,10 +186,7 @@ class InteractionHandler {
     static async handleCartInteraction(interaction) {
         const action = interaction.customId.split('_')[1];
 
-        // Defer reply para operações que podem demorar
-        if (['checkout'].includes(action)) {
-            await interaction.deferReply({ ephemeral: true });
-        }
+        // Defer reply será feito dentro de cada método conforme necessário
 
         switch (action) {
             case 'checkout':
@@ -785,8 +782,7 @@ class InteractionHandler {
                 confirmed_at: new Date().toISOString()
             });
 
-            await Database.db.run('UPDATE sales SET payment_status = ?, payment_data = ? WHERE id = ?', 
-                ['completed', paymentData, saleId]);
+            await Database.completeSalePayment(saleId, paymentData);
 
             // Buscar informações do carrinho e produtos
             const cart = await Database.getCart(sale.cart_id);
@@ -1263,11 +1259,20 @@ class InteractionHandler {
     }
 
     // Processar checkout
-    static async processCheckout(interaction) {
+    static async processCheckout(interaction, cartId = null) {
         try {
-            await interaction.deferReply({ ephemeral: true });
+            // Verificar se a interação já foi deferida, se não, deferir agora
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ ephemeral: true });
+            }
 
-            const cart = await Database.getCartByUser(interaction.user.id);
+            // Se cartId foi fornecido (compra direta), usar ele, senão buscar carrinho do usuário
+            let cart;
+            if (cartId) {
+                cart = await Database.getCart(cartId);
+            } else {
+                cart = await Database.getCartByUser(interaction.user.id);
+            }
             
             if (!cart) {
                 return await interaction.editReply({
@@ -1482,7 +1487,7 @@ class InteractionHandler {
         
         try {
             // Buscar dados da venda
-            const sale = await Database.db.get('SELECT * FROM sales WHERE id = ?', [saleId]);
+            const sale = await Database.getSaleById(saleId);
             if (!sale) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')],
@@ -1675,10 +1680,7 @@ class InteractionHandler {
             removeDate.setDate(removeDate.getDate() + days);
 
             // Salvar no banco para remoção posterior
-            await Database.db.run(`
-                INSERT INTO role_assignments (user_id, role_id, guild_id, expires_at)
-                VALUES (?, ?, ?, ?)
-            `, [user.id, roleId, guild.id, removeDate.toISOString()]);
+            await Database.createRoleAssignment(user.id, roleId, guild.id, removeDate.toISOString());
 
             // Notificar usuário
             try {
@@ -2167,13 +2169,7 @@ class InteractionHandler {
     // Mostrar histórico de vendas
     static async showSalesHistory(interaction) {
         try {
-            const Database = require('./database');
-            const sales = await Database.db.all(`
-                SELECT * FROM sales 
-                WHERE payment_status = 'completed' 
-                ORDER BY created_at DESC 
-                LIMIT 10
-            `);
+            const sales = await Database.getSales(10);
 
             if (sales.length === 0) {
                 return await interaction.reply({
@@ -2469,8 +2465,7 @@ class InteractionHandler {
             const newTotal = originalTotal - discount;
 
             // Aplicar cupom
-            await Database.db.run('UPDATE carts SET coupon_code = ?, total_amount = ? WHERE id = ?', 
-                [couponCode, newTotal, cart.id]);
+            await Database.applyCouponToCart(cart.id, couponCode, newTotal);
             await Database.useCoupon(couponCode);
 
             await interaction.reply({
@@ -2509,7 +2504,7 @@ class InteractionHandler {
             }
 
             await Database.updateCartStatus(cart.id, 'cleared');
-            await Database.db.run('DELETE FROM cart_items WHERE cart_id = ?', [cart.id]);
+            await Database.clearCartItems(cart.id);
 
             await interaction.reply({
                 embeds: [{
@@ -2525,6 +2520,39 @@ class InteractionHandler {
             console.error('❌ Erro ao limpar carrinho:', error);
             await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Erro ao limpar carrinho!')],
+                ephemeral: true
+            });
+        }
+    }
+
+    // Remover item do carrinho
+    static async removeCartItem(interaction, itemId) {
+        try {
+            const cart = await Database.getCartByUser(interaction.user.id);
+            if (!cart) {
+                return await interaction.reply({
+                    embeds: [Helpers.createWarningEmbed('🛒 Carrinho não encontrado!')],
+                    ephemeral: true
+                });
+            }
+
+            // Remover item do carrinho (itemId é na verdade productId)
+            await Database.removeCartItem(cart.id, itemId);
+
+            await interaction.reply({
+                embeds: [{
+                    color: 0x2ecc71,
+                    title: '🗑️ Item Removido!',
+                    description: 'O item foi removido do seu carrinho.',
+                    timestamp: new Date().toISOString()
+                }],
+                ephemeral: true
+            });
+
+        } catch (error) {
+            console.error('❌ Erro ao remover item do carrinho:', error);
+            await interaction.reply({
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao remover item do carrinho!')],
                 ephemeral: true
             });
         }
@@ -2734,9 +2762,9 @@ class InteractionHandler {
         const saleId = interaction.customId.split('_')[2];
         
         try {
-            const sale = await Database.db.get('SELECT * FROM sales WHERE id = ? AND payment_status = ?', [saleId, 'completed']);
-            
-            if (!sale) {
+            const sale = await Database.getSaleById(saleId);
+        
+            if (!sale || sale.payment_status !== 'completed') {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada ou não foi paga!')],
                     ephemeral: true

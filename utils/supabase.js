@@ -241,6 +241,69 @@ class SupabaseDatabase {
         }));
     }
 
+    async removeCartItem(cartId, productId) {
+        const { data, error } = await this.supabase
+            .from('cart_items')
+            .delete()
+            .eq('cart_id', cartId)
+            .eq('product_id', productId);
+
+        if (error) throw error;
+        return data;
+    }
+
+    async clearCartItems(cartId) {
+        const { data, error } = await this.supabase
+            .from('cart_items')
+            .delete()
+            .eq('cart_id', cartId);
+
+        if (error) throw error;
+        return data;
+    }
+
+    async applyCouponToCart(cartId, couponCode, newTotal) {
+        const { data, error } = await this.supabase
+            .from('carts')
+            .update({ 
+                coupon_code: couponCode,
+                total_amount: newTotal 
+            })
+            .eq('id', cartId);
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createRoleAssignment(userId, roleId, guildId, expiresAt) {
+        const { data, error } = await this.supabase
+            .from('role_assignments')
+            .insert([{
+                user_id: userId,
+                role_id: roleId,
+                guild_id: guildId,
+                expires_at: expiresAt
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data.id;
+    }
+
+    async completeSalePayment(saleId, paymentData) {
+        const { data, error } = await this.supabase
+            .from('sales')
+            .update({ 
+                payment_status: 'completed',
+                payment_data: paymentData 
+            })
+            .eq('id', saleId);
+
+        if (error) throw error;
+        return data;
+    }
+
     async updateCartTotal(cartId, totalAmount) {
         const { data, error } = await this.supabase
             .from('carts')
@@ -362,6 +425,132 @@ class SupabaseDatabase {
 
         if (error) throw error;
         return 1;
+    }
+
+    // Métodos para cupons
+    async getCoupon(code) {
+        const { data, error } = await this.supabase
+            .from('coupons')
+            .select('*')
+            .eq('code', code.toUpperCase())
+            .eq('active', true)
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        return data;
+    }
+
+    async useCoupon(code) {
+        // Primeiro buscar o cupom atual
+        const { data: coupon, error: fetchError } = await this.supabase
+            .from('coupons')
+            .select('current_uses')
+            .eq('code', code.toUpperCase())
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        // Incrementar o uso
+        const { data, error } = await this.supabase
+            .from('coupons')
+            .update({ 
+                current_uses: coupon.current_uses + 1
+            })
+            .eq('code', code.toUpperCase());
+
+        if (error) throw error;
+        return data;
+    }
+
+    async createCoupon(couponData) {
+        const { code, discount_type, discount_value, max_uses, expires_at } = couponData;
+        
+        const { data, error } = await this.supabase
+            .from('coupons')
+            .insert([{
+                code: code.toUpperCase(),
+                discount_type,
+                discount_value,
+                max_uses,
+                current_uses: 0,
+                active: true,
+                expires_at
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data.id;
+    }
+
+    // Métodos para configurações
+    async getSetting(key) {
+        const { data, error } = await this.supabase
+            .from('settings')
+            .select('value')
+            .eq('key', key)
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        return data?.value;
+    }
+
+    async setSetting(key, value) {
+        const { data, error } = await this.supabase
+            .from('settings')
+            .upsert([{
+                key,
+                value,
+                updated_at: new Date().toISOString()
+            }]);
+
+        if (error) throw error;
+        return data;
+    }
+
+    // Métodos para tickets
+    async createTicket(ticketData) {
+        const { sale_id, user_id, channel_id } = ticketData;
+        
+        const { data, error } = await this.supabase
+            .from('tickets')
+            .insert([{
+                sale_id,
+                user_id,
+                channel_id,
+                status: 'open'
+            }])
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data.id;
+    }
+
+    async getTicket(ticketId) {
+        const { data, error } = await this.supabase
+            .from('tickets')
+            .select('*')
+            .eq('id', ticketId)
+            .single();
+
+        if (error && error.code !== 'PGRST116') throw error;
+        return data;
+    }
+
+    async updateTicketStatus(ticketId, status) {
+        const updateData = { status };
+        if (status === 'closed') {
+            updateData.closed_at = new Date().toISOString();
+        }
+
+        const { data, error } = await this.supabase
+            .from('tickets')
+            .update(updateData)
+            .eq('id', ticketId);
+
+        if (error) throw error;
+        return data;
     }
 }
 
