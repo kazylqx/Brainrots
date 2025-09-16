@@ -2794,7 +2794,7 @@ class InteractionHandler {
                 expires_at: expiresAt
             });
             
-            await Database.addToCart(cartId, productId, 1);
+            await Database.addCartItem(cartId, productId, 1, product.price);
 
             // Processar checkout
             await this.processCheckout(interaction, cartId);
