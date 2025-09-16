@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
+const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const Database = require('./utils/database');
@@ -20,6 +21,27 @@ client.commands = new Collection();
 
 // Inicializar banco de dados
 Database.init();
+
+// Criar servidor Express para health check (necessário para Render)
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.json({ 
+        status: 'online', 
+        bot: client.user?.tag || 'Initializing...',
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+    });
+});
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'healthy', uptime: process.uptime() });
+});
+
+app.listen(PORT, () => {
+    console.log(`🌐 Health check server running on port ${PORT}`);
+});
 
 // Carregar comandos
 const commandsPath = path.join(__dirname, 'commands');
