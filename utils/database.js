@@ -285,6 +285,10 @@ class Database {
     }
 
     async deleteProduct(id) {
+        if (this.useSupabase) {
+            return await this.supabase.deleteProduct(id);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE products SET active = 0 WHERE id = ?', [id], function(err) {
                 if (err) {
@@ -723,6 +727,11 @@ class Database {
                 }
             });
         });
+    }
+
+    // Alias para compatibilidade
+    async getSale(saleId) {
+        return await this.getSaleById(saleId);
     }
 
     async updateSaleStatus(saleId, status) {

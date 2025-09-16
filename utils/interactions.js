@@ -83,8 +83,8 @@ class InteractionHandler {
             } else if (customId.startsWith('modal_stock_')) {
                 const productId = customId.split('_')[2];
                 await this.processStockUpdate(interaction, productId);
-            } else if (customId.startsWith('payment_confirm_')) {
-                const saleId = customId.split('_')[2];
+            } else if (customId.startsWith('payment_confirm_modal_')) {
+                const saleId = customId.split('_')[3];
                 await this.processPaymentConfirmation(interaction, saleId);
             } else if (customId === 'modal_apply_coupon') {
                 await this.processApplyCoupon(interaction);
@@ -901,7 +901,7 @@ class InteractionHandler {
     // Cancelar pagamento
     static async cancelPayment(interaction, orderId) {
         try {
-            await Database.updateOrderStatus(orderId, 'cancelled');
+            await Database.updateSaleStatus(orderId, 'cancelled');
 
             await interaction.reply({
                 embeds: [{
@@ -1481,8 +1481,8 @@ class InteractionHandler {
         }
     }
 
-    // Confirmar pagamento
-    static async confirmPayment(interaction) {
+    // Mostrar modal de confirmação de pagamento
+    static async showPaymentConfirmationModal(interaction) {
         const saleId = interaction.customId.split('_')[2];
         
         try {
@@ -1502,83 +1502,47 @@ class InteractionHandler {
                 });
             }
 
-            // Marcar venda como completa
-            await Database.completeSale(saleId);
-            
-            // Buscar itens do carrinho
-            const cartItems = await Database.getCartItems(sale.cart_id);
-            
-            // Atualizar estoque dos produtos
-            for (const item of cartItems) {
-                const product = await Database.getProduct(item.product_id);
-                if (product && product.stock >= item.quantity) {
-                    await Database.updateStock(item.product_id, product.stock - item.quantity);
-                }
-            }
+            // Mostrar modal de confirmação
+            const modal = new ModalBuilder()
+                .setCustomId(`payment_confirm_modal_${saleId}`)
+                .setTitle('💳 Confirmar Pagamento');
 
-            // Marcar carrinho como completo
-            await Database.updateCartStatus(sale.cart_id, 'completed');
+            const paidValueInput = new TextInputBuilder()
+                .setCustomId('paid_value')
+                .setLabel('Valor Pago (R$)')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+                .setPlaceholder(`Valor esperado: R$ ${sale.total_amount.toFixed(2).replace('.', ',')}`)
+                .setMaxLength(10);
 
-            // Entregar produtos
-            await this.deliverProducts(interaction, sale, cartItems);
+            const paymentProofInput = new TextInputBuilder()
+                .setCustomId('payment_proof')
+                .setLabel('Comprovante/Observações (Opcional)')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false)
+                .setPlaceholder('Cole aqui o comprovante ou adicione observações...')
+                .setMaxLength(500);
 
-            // Atualizar estoque dos produtos
-            await this.updateStockAfterPurchase(sale, cartItems);
+            const firstRow = new ActionRowBuilder().addComponents(paidValueInput);
+            const secondRow = new ActionRowBuilder().addComponents(paymentProofInput);
 
-            // Registrar no log
-            const SalesLogger = require('./logger');
-            await SalesLogger.logSale(interaction.guild, sale);
-            await SalesLogger.updateSaleLog(interaction.guild, saleId, 'completed');
+            modal.addComponents(firstRow, secondRow);
 
-            await interaction.reply({
-                embeds: [{
-                    color: 0x2ecc71,
-                    title: '✅ Pagamento Confirmado!',
-                    description: 'Seu pagamento foi processado com sucesso!\n\n' +
-                                '📦 Os produtos foram entregues via DM\n' +
-                                '📝 A venda foi registrada no sistema\n' +
-                                '🗑️ Este canal será removido em 1 minuto',
-                    fields: [
-                        {
-                            name: '🆔 ID da Venda',
-                            value: `\`${saleId}\``,
-                            inline: true
-                        },
-                        {
-                            name: '💰 Valor Total',
-                            value: Helpers.formatPrice(sale.total_amount),
-                            inline: true
-                        }
-                    ],
-                    timestamp: new Date().toISOString()
-                }],
-                components: [
-                    new ActionRowBuilder().addComponents(
-                        new ButtonBuilder()
-                            .setCustomId(`payment_resend_${saleId}`)
-                            .setLabel('Reenviar Produtos')
-                            .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('📤')
-                    )
-                ]
-            });
-
-            // Deletar canal após 1 minuto
-            setTimeout(async () => {
-                try {
-                    await interaction.channel.delete('Venda concluída');
-                } catch (error) {
-                    console.error('❌ Erro ao deletar canal:', error);
-                }
-            }, 60000);
+            await interaction.showModal(modal);
 
         } catch (error) {
-            console.error('❌ Erro ao confirmar pagamento:', error);
+            console.error('❌ Erro ao mostrar modal de confirmação:', error);
             await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao confirmar pagamento!')],
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao abrir formulário de confirmação!')],
                 ephemeral: true
             });
         }
+    }
+
+    // Confirmar pagamento - abre modal de confirmação
+    static async confirmPayment(interaction) {
+        // Redirecionar para o modal
+        return await this.showPaymentConfirmationModal(interaction);
     }
 
     // Entregar produtos ao cliente
