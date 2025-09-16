@@ -11,7 +11,7 @@ module.exports = {
         if (!Helpers.hasOwnerPermission(interaction.member)) {
             return await interaction.reply({
                 embeds: [Helpers.createErrorEmbed('❌ Você não tem permissão para usar este comando!\n\nApenas membros com o cargo **DONO** podem acessar o painel administrativo.')],
-                ephemeral: true
+                flags: 64
             });
         }
 

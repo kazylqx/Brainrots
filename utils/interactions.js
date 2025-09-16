@@ -5,8 +5,38 @@ const PixGenerator = require('./pix');
 const TicketSystem = require('./ticketSystem');
 
 class InteractionHandler {
+    // Sistema de throttling para evitar processamento duplo
+    static processingInteractions = new Set();
+    
+    static isProcessing(interactionId) {
+        return this.processingInteractions.has(interactionId);
+    }
+    
+    static startProcessing(interactionId) {
+        this.processingInteractions.add(interactionId);
+        // Remover após 30 segundos para evitar memory leak
+        setTimeout(() => {
+            this.processingInteractions.delete(interactionId);
+        }, 30000);
+    }
     static async handleButtonInteraction(interaction) {
         const customId = interaction.customId;
+        
+        // Verificar se já está processando esta interação
+        if (this.isProcessing(interaction.id)) {
+            console.log(`⚠️ Interação ${interaction.id} já está sendo processada, ignorando...`);
+            return;
+        }
+        
+        // Marcar como processando
+        this.startProcessing(interaction.id);
+        
+        // Verificar se a interação não expirou (15 segundos é o limite do Discord)
+        const interactionAge = Date.now() - interaction.createdTimestamp;
+        if (interactionAge > 14000) { // 14 segundos para ter margem
+            console.log(`⚠️ Interação ${interaction.id} muito antiga (${interactionAge}ms), ignorando...`);
+            return;
+        }
         
         try {
             // Verificar permissões para comandos administrativos
@@ -51,12 +81,31 @@ class InteractionHandler {
         } catch (error) {
             console.error('❌ Erro ao processar interação:', error);
             
+            // Verificar se é erro de interação expirada
+            if (error.code === 10062) {
+                console.log(`⚠️ Interação ${interaction.id} expirou (Unknown interaction)`);
+                return;
+            }
+            
+            // Verificar se já foi acknowledgment
+            if (error.code === 40060) {
+                console.log(`⚠️ Interação ${interaction.id} já foi acknowledgment`);
+                return;
+            }
+            
             const errorMessage = {
                 embeds: [Helpers.createErrorEmbed('❌ Ocorreu um erro interno. Tente novamente.')],
                 flags: 64
             };
             
             try {
+                // Verificar se a interação ainda é válida antes de tentar responder
+                const interactionAge = Date.now() - interaction.createdTimestamp;
+                if (interactionAge > 14000) {
+                    console.log(`⚠️ Não respondendo erro - interação muito antiga (${interactionAge}ms)`);
+                    return;
+                }
+                
                 if (interaction.replied) {
                     await interaction.followUp(errorMessage);
                 } else if (interaction.deferred) {

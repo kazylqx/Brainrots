@@ -39,10 +39,23 @@ module.exports = {
         // Botões, menus e modais
         if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
             try {
+                // Verificar se a interação não expirou
+                const interactionAge = Date.now() - interaction.createdTimestamp;
+                if (interactionAge > 14000) {
+                    console.log(`⚠️ Interação ${interaction.id} muito antiga (${interactionAge}ms), ignorando...`);
+                    return;
+                }
+                
                 const { handleButtonInteraction } = require('../utils/interactions');
                 await handleButtonInteraction(interaction);
             } catch (error) {
                 console.error('❌ Erro ao processar interação:', error);
+                
+                // Verificar se é erro de interação expirada ou já acknowledgment
+                if (error.code === 10062 || error.code === 40060) {
+                    console.log(`⚠️ Interação ${interaction.id} expirou ou já foi processada (código: ${error.code})`);
+                    return;
+                }
                 
                 const errorMessage = {
                     content: '❌ Erro interno. Tente novamente.',
@@ -50,6 +63,13 @@ module.exports = {
                 };
                 
                 try {
+                    // Verificar idade da interação antes de responder
+                    const ageCheck = Date.now() - interaction.createdTimestamp;
+                    if (ageCheck > 14000) {
+                        console.log(`⚠️ Não respondendo erro - interação muito antiga (${ageCheck}ms)`);
+                        return;
+                    }
+                    
                     if (interaction.replied) {
                         await interaction.followUp(errorMessage);
                     } else if (interaction.deferred) {
