@@ -1,0 +1,30 @@
+{
+  "name": "doubebot-discord",
+  "version": "1.0.0",
+  "description": "Bot de vendas para Discord com sistema de carrinho e PIX",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "vendas",
+    "pix",
+    "carrinho"
+  ],
+  "author": "DoubeBot",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.3",
+    "sqlite3": "^5.1.6",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}
