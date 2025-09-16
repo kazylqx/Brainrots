@@ -90,13 +90,20 @@ class SupabaseDatabase {
     }
 
     async getProduct(id) {
+        console.log(`🔍 Supabase - Buscando produto ID: ${id} (tipo: ${typeof id})`);
+        
         const { data, error } = await this.supabase
             .from('products')
             .select('*')
-            .eq('id', id)
+            .eq('id', parseInt(id))
             .single();
 
-        if (error && error.code !== 'PGRST116') throw error;
+        console.log(`📦 Supabase - Resultado:`, { data, error });
+        
+        if (error && error.code !== 'PGRST116') {
+            console.log(`❌ Supabase - Erro na consulta:`, error);
+            throw error;
+        }
         return data;
     }
 

@@ -1086,8 +1086,12 @@ class InteractionHandler {
     // Adicionar produto ao carrinho
     static async addToCart(interaction, productId) {
         try {
+            console.log(`🔍 AddToCart - Buscando produto ID: ${productId}`);
             const product = await Database.getProductById(productId);
+            console.log(`📦 AddToCart - Produto encontrado:`, product);
+            
             if (!product || !product.active) {
+                console.log(`❌ AddToCart - Produto não encontrado ou inativo. Product:`, product);
                 const errorMessage = {
                     embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
                 };
@@ -2759,8 +2763,12 @@ class InteractionHandler {
     // Compra direta
     static async buyNow(interaction, productId) {
         try {
+            console.log(`🔍 Buscando produto ID: ${productId}`);
             const product = await Database.getProductById(productId);
+            console.log(`📦 Produto encontrado:`, product);
+            
             if (!product || !product.active) {
+                console.log(`❌ Produto não encontrado ou inativo. Product:`, product);
                 const errorMessage = { embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')] };
                 
                 if (interaction.deferred) {
