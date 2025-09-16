@@ -23,8 +23,10 @@ module.exports = {
                 };
 
                 try {
-                    if (interaction.replied || interaction.deferred) {
+                    if (interaction.replied) {
                         await interaction.followUp(errorMessage);
+                    } else if (interaction.deferred) {
+                        await interaction.editReply(errorMessage);
                     } else {
                         await interaction.reply(errorMessage);
                     }
@@ -48,8 +50,10 @@ module.exports = {
                 };
                 
                 try {
-                    if (interaction.replied || interaction.deferred) {
+                    if (interaction.replied) {
                         await interaction.followUp(errorMessage);
+                    } else if (interaction.deferred) {
+                        await interaction.editReply(errorMessage);
                     } else {
                         await interaction.reply(errorMessage);
                     }

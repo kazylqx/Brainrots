@@ -57,8 +57,10 @@ class InteractionHandler {
             };
             
             try {
-                if (interaction.replied || interaction.deferred) {
+                if (interaction.replied) {
                     await interaction.followUp(errorMessage);
+                } else if (interaction.deferred) {
+                    await interaction.editReply(errorMessage);
                 } else {
                     await interaction.reply(errorMessage);
                 }
@@ -144,9 +146,12 @@ class InteractionHandler {
         const [, action, productId] = interaction.customId.split('_');
 
         // Defer reply para operações que podem demorar
-        if (['buy-now', 'details', 'add-to-cart', 'checkout'].includes(action)) {
-            if (!interaction.deferred && !interaction.replied) {
+        let shouldDefer = ['buy-now', 'details', 'add-to-cart', 'checkout'].includes(action);
+        if (shouldDefer && !interaction.deferred && !interaction.replied) {
+            try {
                 await interaction.deferReply({ ephemeral: true });
+            } catch (error) {
+                console.log('⚠️ Erro ao defer reply (já foi processado):', error.message);
             }
         }
 
