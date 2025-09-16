@@ -232,7 +232,7 @@ class Database {
 
     async getProduct(id) {
         if (this.useSupabase) {
-            return await this.supabase.getProduct(id);
+            return await this.supabase.getProductById(id);
         }
         
         return new Promise((resolve, reject) => {
@@ -248,6 +248,9 @@ class Database {
 
     // Alias para compatibilidade
     async getProductById(id) {
+        if (this.useSupabase) {
+            return await this.supabase.getProductById(id);
+        }
         return await this.getProduct(id);
     }
 
@@ -432,6 +435,10 @@ class Database {
 
     // Métodos para carrinho
     async createCart(cartData) {
+        if (this.useSupabase) {
+            return await this.supabase.createCart(cartData);
+        }
+        
         return new Promise((resolve, reject) => {
             const { id, user_id, channel_id, expires_at } = cartData;
             
@@ -449,6 +456,10 @@ class Database {
     }
 
     async getCart(cartId) {
+        if (this.useSupabase) {
+            return await this.supabase.getCart(cartId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get('SELECT * FROM carts WHERE id = ?', [cartId], (err, row) => {
                 if (err) {
@@ -461,6 +472,10 @@ class Database {
     }
 
     async getCartByUser(userId) {
+        if (this.useSupabase) {
+            return await this.supabase.getCartByUser(userId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get(`
                 SELECT * FROM carts 
@@ -477,6 +492,10 @@ class Database {
     }
 
     async addCartItem(cartId, productId, quantity, unitPrice) {
+        if (this.useSupabase) {
+            return await this.supabase.addCartItem(cartId, productId, quantity, unitPrice);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run(`
                 INSERT INTO cart_items (cart_id, product_id, quantity, unit_price)
@@ -492,6 +511,10 @@ class Database {
     }
 
     async getCartItems(cartId) {
+        if (this.useSupabase) {
+            return await this.supabase.getCartItems(cartId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.all(`
                 SELECT ci.*, p.name, p.description, p.image_url, p.role_id, p.role_days
@@ -509,6 +532,10 @@ class Database {
     }
 
     async updateCartTotal(cartId, totalAmount) {
+        if (this.useSupabase) {
+            return await this.supabase.updateCartTotal(cartId, totalAmount);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE carts SET total_amount = ? WHERE id = ?', [totalAmount, cartId], function(err) {
                 if (err) {
@@ -521,6 +548,10 @@ class Database {
     }
 
     async updateCartStatus(cartId, status) {
+        if (this.useSupabase) {
+            return await this.supabase.updateCartStatus(cartId, status);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE carts SET status = ? WHERE id = ?', [status, cartId], function(err) {
                 if (err) {
@@ -534,6 +565,10 @@ class Database {
 
     // Métodos para vendas
     async createSale(saleData) {
+        if (this.useSupabase) {
+            return await this.supabase.createSale(saleData);
+        }
+        
         return new Promise((resolve, reject) => {
             const { id, cart_id, user_id, username, total_amount, coupon_code, pix_code } = saleData;
             
@@ -583,6 +618,10 @@ class Database {
     }
 
     async getSaleById(saleId) {
+        if (this.useSupabase) {
+            return await this.supabase.getSaleById(saleId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get('SELECT * FROM sales WHERE id = ?', [saleId], (err, row) => {
                 if (err) {
@@ -595,8 +634,12 @@ class Database {
     }
 
     async updateSaleStatus(saleId, status) {
+        if (this.useSupabase) {
+            return await this.supabase.updateSaleStatus(saleId, status);
+        }
+        
         return new Promise((resolve, reject) => {
-            this.db.run('UPDATE sales SET status = ? WHERE id = ?', [status, saleId], function(err) {
+            this.db.run('UPDATE sales SET payment_status = ? WHERE id = ?', [status, saleId], function(err) {
                 if (err) {
                     reject(err);
                 } else {
@@ -607,6 +650,10 @@ class Database {
     }
 
     async updateProductStock(productId, newStock) {
+        if (this.useSupabase) {
+            return await this.supabase.updateStock(productId, newStock);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE products SET stock = ? WHERE id = ?', [newStock, productId], function(err) {
                 if (err) {
@@ -647,6 +694,10 @@ class Database {
     }
 
     async getProductMessages(productId) {
+        if (this.useSupabase) {
+            return await this.supabase.getProductMessages(productId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.all('SELECT * FROM product_messages WHERE product_id = ?', [productId], (err, rows) => {
                 if (err) {
@@ -659,6 +710,10 @@ class Database {
     }
 
     async deleteProductMessage(productId, messageId) {
+        if (this.useSupabase) {
+            return await this.supabase.deleteProductMessage(productId, messageId);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('DELETE FROM product_messages WHERE product_id = ? AND message_id = ?', [productId, messageId], function(err) {
                 if (err) {

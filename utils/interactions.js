@@ -140,7 +140,7 @@ class InteractionHandler {
         const [, action, productId] = interaction.customId.split('_');
 
         // Defer reply para operações que podem demorar
-        if (['buy-now', 'details', 'add-to-cart'].includes(action)) {
+        if (['buy-now', 'details', 'add-to-cart', 'checkout'].includes(action)) {
             await interaction.deferReply({ ephemeral: true });
         }
 
@@ -1080,19 +1080,29 @@ class InteractionHandler {
     // Adicionar produto ao carrinho
     static async addToCart(interaction, productId) {
         try {
-            const product = await Database.getProduct(productId);
+            const product = await Database.getProductById(productId);
             if (!product || !product.active) {
-                return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')],
-                    ephemeral: true
-                });
+                const errorMessage = {
+                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
+                };
+                
+                if (interaction.deferred) {
+                    return await interaction.editReply(errorMessage);
+                } else {
+                    return await interaction.reply({ ...errorMessage, flags: 64 });
+                }
             }
 
             if (product.stock <= 0) {
-                return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Produto fora de estoque!')],
-                    ephemeral: true
-                });
+                const errorMessage = {
+                    embeds: [Helpers.createErrorEmbed('❌ Produto fora de estoque!')]
+                };
+                
+                if (interaction.deferred) {
+                    return await interaction.editReply(errorMessage);
+                } else {
+                    return await interaction.reply({ ...errorMessage, flags: 64 });
+                }
             }
 
             // Verificar se usuário já tem carrinho ativo
@@ -1260,7 +1270,7 @@ class InteractionHandler {
 
             // Verificar estoque
             for (const item of cartItems) {
-                const product = await Database.getProduct(item.product_id);
+                const product = await Database.getProductById(item.product_id);
                 if (!product || product.stock < item.quantity) {
                     return await interaction.editReply({
                         embeds: [Helpers.createErrorEmbed(`❌ Produto "${item.name}" não tem estoque suficiente!`)]
@@ -1331,7 +1341,11 @@ class InteractionHandler {
 
             // Atualizar carrinho com canal
             await Database.updateCartStatus(cart.id, 'active');
-            await Database.db.run('UPDATE carts SET channel_id = ? WHERE id = ?', [cartChannel.id, cart.id]);
+            if (Database.useSupabase) {
+                await Database.supabase.supabase.from('carts').update({ channel_id: cartChannel.id }).eq('id', cart.id);
+            } else {
+                await Database.db.run('UPDATE carts SET channel_id = ? WHERE id = ?', [cartChannel.id, cart.id]);
+            }
 
             // Gerar PIX
             const total = cart.total_amount;
@@ -2624,7 +2638,7 @@ class InteractionHandler {
     // Mostrar detalhes do produto
     static async showProductDetails(interaction, productId) {
         try {
-            const product = await Database.getProduct(productId);
+            const product = await Database.getProductById(productId);
             if (!product || !product.active) {
                 const errorMessage = {
                     embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
@@ -2739,9 +2753,7 @@ class InteractionHandler {
     // Comprar agora (bypass do carrinho)
     static async buyNow(interaction, productId) {
         try {
-            await interaction.deferReply({ ephemeral: true });
-
-            const product = await Database.getProduct(productId);
+            const product = await Database.getProductById(productId);
             if (!product || !product.active) {
                 return await interaction.editReply({
                     embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
@@ -2777,9 +2789,16 @@ class InteractionHandler {
 
         } catch (error) {
             console.error('❌ Erro na compra direta:', error);
-            await interaction.editReply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')]
-            });
+            if (interaction.deferred) {
+                await interaction.editReply({
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')]
+                });
+            } else {
+                await interaction.reply({
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao processar compra direta!')],
+                    flags: 64
+                });
+            }
         }
     }
 
@@ -2830,7 +2849,11 @@ class InteractionHandler {
         });
 
         // Atualizar carrinho com canal
-        await Database.db.run('UPDATE carts SET channel_id = ? WHERE id = ?', [cartChannel.id, cart.id]);
+        if (Database.useSupabase) {
+            await Database.supabase.supabase.from('carts').update({ channel_id: cartChannel.id }).eq('id', cart.id);
+        } else {
+            await Database.db.run('UPDATE carts SET channel_id = ? WHERE id = ?', [cartChannel.id, cart.id]);
+        }
 
         // Gerar PIX
         const total = product.price;
