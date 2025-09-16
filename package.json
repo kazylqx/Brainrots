@@ -17,6 +17,7 @@
   "author": "DoubeBot",
   "license": "MIT",
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
     "discord.js": "^14.14.1",
     "dotenv": "^16.3.1",
     "express": "^4.21.2",

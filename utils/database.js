@@ -1,13 +1,32 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const SupabaseDatabase = require('./supabase');
 
 class Database {
     constructor() {
         this.db = null;
+        this.supabase = null;
+        this.useSupabase = false;
     }
 
     // Inicializar banco de dados
-    init() {
+    async init() {
+        // Tentar Supabase primeiro (para produção)
+        if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+            try {
+                this.supabase = new SupabaseDatabase();
+                const connected = await this.supabase.init();
+                if (connected) {
+                    this.useSupabase = true;
+                    console.log('✅ Usando Supabase para persistência');
+                    return;
+                }
+            } catch (error) {
+                console.log('⚠️ Falha ao conectar Supabase, usando SQLite local');
+            }
+        }
+
+        // Fallback para SQLite local
         const dbPath = path.join(__dirname, '..', 'database.sqlite');
         this.db = new sqlite3.Database(dbPath, (err) => {
             if (err) {
@@ -171,6 +190,10 @@ class Database {
 
     // Métodos para produtos
     async createProduct(productData) {
+        if (this.useSupabase) {
+            return await this.supabase.createProduct(productData);
+        }
+        
         return new Promise((resolve, reject) => {
             const { name, description, price, stock, image_url, banner_url, role_id, role_days, channel_id } = productData;
             
@@ -188,6 +211,10 @@ class Database {
     }
 
     async getProducts(activeOnly = true) {
+        if (this.useSupabase) {
+            return await this.supabase.getProducts(activeOnly);
+        }
+        
         return new Promise((resolve, reject) => {
             const query = activeOnly ? 
                 'SELECT * FROM products WHERE active = 1 ORDER BY created_at DESC' :
@@ -204,6 +231,10 @@ class Database {
     }
 
     async getProduct(id) {
+        if (this.useSupabase) {
+            return await this.supabase.getProduct(id);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.get('SELECT * FROM products WHERE id = ?', [id], (err, row) => {
                 if (err) {
@@ -258,6 +289,10 @@ class Database {
     }
 
     async updateStock(id, newStock) {
+        if (this.useSupabase) {
+            return await this.supabase.updateStock(id, newStock);
+        }
+        
         return new Promise((resolve, reject) => {
             this.db.run('UPDATE products SET stock = ? WHERE id = ?', [newStock, id], function(err) {
                 if (err) {
