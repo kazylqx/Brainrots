@@ -100,6 +100,11 @@ class SupabaseDatabase {
         return data;
     }
 
+    // Alias para compatibilidade
+    async getProductById(id) {
+        return await this.getProduct(id);
+    }
+
     async updateProduct(id, productData) {
         const { name, description, price, stock, image_url, banner_url, role_id, role_days } = productData;
         

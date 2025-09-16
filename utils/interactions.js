@@ -139,6 +139,11 @@ class InteractionHandler {
     static async handleProductInteraction(interaction) {
         const [, action, productId] = interaction.customId.split('_');
 
+        // Defer reply para operações que podem demorar
+        if (['buy-now', 'details', 'add-to-cart'].includes(action)) {
+            await interaction.deferReply({ ephemeral: true });
+        }
+
         switch (action) {
             case 'add-to-cart':
                 await this.addToCart(interaction, productId);
@@ -153,16 +158,27 @@ class InteractionHandler {
                 await this.showProductDetails(interaction, productId);
                 break;
             default:
-                await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Ação de produto não encontrada!')],
-                    ephemeral: true
-                });
+                if (interaction.deferred) {
+                    await interaction.editReply({
+                        embeds: [Helpers.createErrorEmbed('❌ Ação de produto não encontrada!')]
+                    });
+                } else {
+                    await interaction.reply({
+                        embeds: [Helpers.createErrorEmbed('❌ Ação de produto não encontrada!')],
+                        flags: 64
+                    });
+                }
         }
     }
 
     // Interações do carrinho
     static async handleCartInteraction(interaction) {
         const action = interaction.customId.split('_')[1];
+
+        // Defer reply para operações que podem demorar
+        if (['checkout'].includes(action)) {
+            await interaction.deferReply({ ephemeral: true });
+        }
 
         switch (action) {
             case 'checkout':
@@ -181,7 +197,7 @@ class InteractionHandler {
             default:
                 await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Ação de carrinho não encontrada!')],
-                    ephemeral: true
+                    flags: 64
                 });
         }
     }
@@ -2610,13 +2626,18 @@ class InteractionHandler {
         try {
             const product = await Database.getProduct(productId);
             if (!product || !product.active) {
-                return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')],
-                    ephemeral: true
-                });
+                const errorMessage = {
+                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
+                };
+                
+                if (interaction.deferred) {
+                    return await interaction.editReply(errorMessage);
+                } else {
+                    return await interaction.reply({ ...errorMessage, flags: 64 });
+                }
             }
 
-            await interaction.reply({
+            const replyData = {
                 embeds: [{
                     color: 0x3498db,
                     title: `📦 ${product.name}`,
@@ -2656,16 +2677,26 @@ class InteractionHandler {
                             .setEmoji('💳')
                             .setDisabled(product.stock <= 0)
                     )
-                ],
-                ephemeral: true
-            });
+                ]
+            };
+
+            if (interaction.deferred) {
+                await interaction.editReply(replyData);
+            } else {
+                await interaction.reply({ ...replyData, flags: 64 });
+            }
 
         } catch (error) {
-            console.error('❌ Erro ao mostrar detalhes:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar detalhes do produto!')],
-                ephemeral: true
-            });
+            console.error('❌ Erro ao mostrar detalhes do produto:', error);
+            const errorMessage = {
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar detalhes do produto!')]
+            };
+            
+            if (interaction.deferred) {
+                await interaction.editReply(errorMessage);
+            } else {
+                await interaction.reply({ ...errorMessage, flags: 64 });
+            }
         }
     }
 

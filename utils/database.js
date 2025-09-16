@@ -246,6 +246,11 @@ class Database {
         });
     }
 
+    // Alias para compatibilidade
+    async getProductById(id) {
+        return await this.getProduct(id);
+    }
+
     async deleteProduct(id) {
         return new Promise((resolve, reject) => {
             this.db.run('DELETE FROM products WHERE id = ?', [id], function(err) {
