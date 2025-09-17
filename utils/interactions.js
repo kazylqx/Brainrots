@@ -1373,15 +1373,27 @@ class InteractionHandler {
             const cartCategoryId = process.env.CART_CATEGORY_ID;
             let category;
             
-            // Se ID estiver configurado, usar ID
+            // Primeiro: tentar buscar por ID configurado
             if (cartCategoryId && cartCategoryId !== 'your_cart_category_id_here') {
                 category = guild.channels.cache.get(cartCategoryId);
-            } else {
-                // Fallback: buscar por nome
-                category = guild.channels.cache.find(c => c.name === 'Carrinho' && c.type === 4);
+                console.log(`🔍 Buscando categoria por ID ${cartCategoryId}:`, category?.name);
             }
             
+            // Segundo: buscar por nome (case-insensitive)
             if (!category) {
+                category = guild.channels.cache.find(c => 
+                    c.name.toLowerCase() === 'carrinho' && c.type === 4
+                );
+                console.log(`🔍 Buscando categoria por nome "carrinho":`, category?.name);
+            }
+            
+            if (category) {
+                console.log(`✅ Categoria encontrada: "${category.name}" (ID: ${category.id})`);
+            }
+            
+            // Terceiro: criar nova categoria se não encontrou
+            if (!category) {
+                console.log(`🆕 Criando nova categoria "Carrinho"`);
                 category = await guild.channels.create({
                     name: 'Carrinho',
                     type: 4, // Category
@@ -2991,9 +3003,30 @@ class InteractionHandler {
         const channelName = Helpers.generateCartChannelName(interaction.user.username, orderId);
 
         // Encontrar ou criar categoria "Carrinho"
-        let category = guild.channels.cache.find(c => c.name === (process.env.CART_CATEGORY_NAME || 'Carrinho') && c.type === 4);
+        const cartCategoryId = process.env.CART_CATEGORY_ID;
+        let category;
         
+        // Primeiro: tentar buscar por ID configurado
+        if (cartCategoryId && cartCategoryId !== 'your_cart_category_id_here') {
+            category = guild.channels.cache.get(cartCategoryId);
+            console.log(`🔍 [Direct] Buscando categoria por ID ${cartCategoryId}:`, category?.name);
+        }
+        
+        // Segundo: buscar por nome (case-insensitive)
         if (!category) {
+            category = guild.channels.cache.find(c => 
+                c.name.toLowerCase() === 'carrinho' && c.type === 4
+            );
+            console.log(`🔍 [Direct] Buscando categoria por nome "carrinho":`, category?.name);
+        }
+        
+        if (category) {
+            console.log(`✅ [Direct] Categoria encontrada: "${category.name}" (ID: ${category.id})`);
+        }
+        
+        // Terceiro: criar nova categoria se não encontrou
+        if (!category) {
+            console.log(`🆕 [Direct] Criando nova categoria "Carrinho"`);
             category = await guild.channels.create({
                 name: process.env.CART_CATEGORY_NAME || 'Carrinho',
                 type: 4,
