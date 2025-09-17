@@ -17,9 +17,22 @@ module.exports = {
             } catch (error) {
                 console.error('❌ Erro ao executar comando:', error);
 
+                // Verificar se é erro de interação expirada
+                if (error.code === 10062 || error.code === 40060) {
+                    console.log(`⚠️ Comando ${interaction.commandName} - Interação expirou (código: ${error.code})`);
+                    return;
+                }
+
+                // Verificar idade da interação
+                const interactionAge = Date.now() - interaction.createdTimestamp;
+                if (interactionAge > 14000) {
+                    console.log(`⚠️ Comando ${interaction.commandName} - Interação muito antiga (${interactionAge}ms)`);
+                    return;
+                }
+
                 const errorMessage = {
                     content: '❌ Houve um erro ao executar este comando!',
-                    flags: 64 // Ephemeral flag
+                    flags: 64
                 };
 
                 try {
@@ -31,7 +44,7 @@ module.exports = {
                         await interaction.reply(errorMessage);
                     }
                 } catch (replyError) {
-                    console.error('❌ Erro ao responder interação:', replyError);
+                    console.error('❌ Erro ao responder comando:', replyError);
                 }
             }
         }

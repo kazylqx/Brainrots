@@ -1091,13 +1091,19 @@ class InteractionHandler {
     // Menu de seleção de produtos
     static async showProductSelectMenu(interaction, action) {
         try {
+            // Defer reply para evitar timeout
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ flags: 64 });
+            }
+            
             const products = await Database.getProducts();
 
             if (products.length === 0) {
-                return await interaction.reply({
+                const errorMsg = {
                     embeds: [Helpers.createWarningEmbed('⚠️ Nenhum produto encontrado!')],
                     flags: 64
-                });
+                };
+                return interaction.deferred ? await interaction.editReply(errorMsg) : await interaction.reply(errorMsg);
             }
 
             const options = products.slice(0, 25).map(product => ({
@@ -1116,20 +1122,33 @@ class InteractionHandler {
             const actionText = {
                 'edit': 'editar',
                 'delete': 'excluir',
-                'stock': 'gerenciar estoque'
+                'stock': 'gerenciar estoque',
+                'resend': 'reenviar embed'
             };
 
-            await interaction.reply({
+            const replyMsg = {
                 embeds: [{
                     color: 0x3498db,
-                    title: `📦 Selecionar Produto para ${actionText[action]}`,
+                    title: `📦 Selecionar Produto para ${actionText[action] || action}`,
                     description: 'Escolha um produto da lista abaixo:'
                 }],
                 components: [row],
                 flags: 64
-            });
+            };
+            
+            if (interaction.deferred) {
+                await interaction.editReply(replyMsg);
+            } else {
+                await interaction.reply(replyMsg);
+            }
         } catch (error) {
             console.error('❌ Erro ao mostrar menu de produtos:', error);
+            
+            // Verificar se é erro de interação expirada
+            if (error.code === 10062 || error.code === 40060) {
+                console.log(`⚠️ Menu de produtos - Interação expirou (código: ${error.code})`);
+                return;
+            }
             
             try {
                 const errorMessage = {
