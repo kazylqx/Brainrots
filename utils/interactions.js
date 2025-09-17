@@ -59,6 +59,10 @@ class InteractionHandler {
                 } else if (interaction.customId === 'admin_select-channel-for-product') {
                     const channelId = interaction.values[0];
                     await this.showAddProductModal(interaction, channelId);
+                } else if (interaction.customId.startsWith('resend_channel_select_')) {
+                    const productId = interaction.customId.split('_')[3];
+                    const channelId = interaction.values[0];
+                    await this.processResendEmbed(interaction, productId, channelId);
                 }
                 return;
             }
@@ -170,6 +174,9 @@ class InteractionHandler {
                 break;
             case 'manage-stock':
                 await this.showProductSelectMenu(interaction, 'stock');
+                break;
+            case 'resend-embed':
+                await this.showProductSelectMenu(interaction, 'resend');
                 break;
             case 'view-sales':
                 await this.showSalesHistory(interaction);
@@ -1559,6 +1566,182 @@ class InteractionHandler {
         }
     }
 
+    // Mostrar seleção de canal para reenviar embed
+    static async showChannelSelectForResend(interaction, product) {
+        try {
+            // Buscar canais de texto do servidor
+            const channels = interaction.guild.channels.cache
+                .filter(channel => channel.type === 0) // Text channels
+                .map(channel => ({
+                    label: `#${channel.name}`,
+                    description: `Canal: ${channel.name}`,
+                    value: channel.id
+                }))
+                .slice(0, 25); // Máximo 25 opções
+
+            if (channels.length === 0) {
+                return await interaction.reply({
+                    embeds: [Helpers.createErrorEmbed('❌ Nenhum canal de texto encontrado!')],
+                    flags: 64
+                });
+            }
+
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId(`resend_channel_select_${product.id}`)
+                .setPlaceholder('🎯 Selecione o canal para reenviar o embed')
+                .addOptions(channels);
+
+            const row = new ActionRowBuilder().addComponents(selectMenu);
+
+            await interaction.reply({
+                embeds: [{
+                    color: 0x3498db,
+                    title: '📤 Reenviar Embed do Produto',
+                    description: `**Produto:** ${product.name}\n` +
+                                `**Preço:** ${Helpers.formatPrice(product.price)}\n` +
+                                `**Estoque:** ${product.stock} unidades\n\n` +
+                                `Selecione o canal onde deseja reenviar o embed deste produto:`,
+                    thumbnail: { url: product.image_url || null },
+                    footer: { text: 'O embed será enviado no canal selecionado' }
+                }],
+                components: [row],
+                flags: 64
+            });
+
+        } catch (error) {
+            console.error('❌ Erro ao mostrar seleção de canal:', error);
+            await interaction.reply({
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar canais!')],
+                flags: 64
+            });
+        }
+    }
+
+    // Processar reenvio de embed do produto
+    static async processResendEmbed(interaction, productId, channelId) {
+        try {
+            await interaction.deferReply({ flags: 64 });
+
+            // Buscar produto
+            const product = await Database.getProduct(productId);
+            if (!product) {
+                return await interaction.editReply({
+                    embeds: [Helpers.createErrorEmbed('❌ Produto não encontrado!')]
+                });
+            }
+
+            // Buscar canal
+            const channel = interaction.guild.channels.cache.get(channelId);
+            if (!channel) {
+                return await interaction.editReply({
+                    embeds: [Helpers.createErrorEmbed('❌ Canal não encontrado!')]
+                });
+            }
+
+            // Verificar permissões no canal
+            if (!channel.permissionsFor(interaction.guild.members.me).has(['SendMessages', 'EmbedLinks'])) {
+                return await interaction.editReply({
+                    embeds: [Helpers.createErrorEmbed(`❌ Não tenho permissão para enviar mensagens no canal ${channel}!`)]
+                });
+            }
+
+            // Criar embed do produto (mesmo formato usado no addProduct)
+            const productEmbed = {
+                color: 0x3498db,
+                title: `🏪 LOJA OFICIAL`,
+                fields: [
+                    {
+                        name: product.name.toUpperCase(),
+                        value: product.description,
+                        inline: false
+                    },
+                    {
+                        name: '💎 Qualidade garantida',
+                        value: '⚡ Entrega instantânea',
+                        inline: true
+                    },
+                    {
+                        name: '🔒 Pagamento seguro via PIX',
+                        value: `**PREÇO**\n# ${Helpers.formatPrice(product.price)}`,
+                        inline: true
+                    },
+                    {
+                        name: '📦 ESTOQUE',
+                        value: `🟢 ${product.stock} unidades\nDisponível agora`,
+                        inline: true
+                    },
+                    {
+                        name: '🆔 CÓDIGO',
+                        value: `#${product.id}`,
+                        inline: true
+                    }
+                ],
+                footer: { text: '🛡️ Compra 100% segura • Suporte 24/7 • Garantia total' },
+                timestamp: new Date().toISOString()
+            };
+
+            // Adicionar imagem se existir
+            if (product.image_url) {
+                productEmbed.image = { url: product.image_url };
+            }
+
+            // Criar botões do produto
+            const productButtons = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId(`product_buy-now_${product.id}`)
+                        .setLabel('💳 COMPRAR AGORA')
+                        .setStyle(ButtonStyle.Success)
+                        .setDisabled(product.stock <= 0),
+                    new ButtonBuilder()
+                        .setCustomId(`product_details_${product.id}`)
+                        .setLabel('📋 Detalhes')
+                        .setStyle(ButtonStyle.Secondary)
+                );
+
+            // Enviar embed no canal selecionado
+            const sentMessage = await channel.send({
+                embeds: [productEmbed],
+                components: [productButtons]
+            });
+
+            // Salvar referência da mensagem no banco (opcional)
+            try {
+                await Database.addProductMessage(product.id, channel.id, sentMessage.id);
+            } catch (dbError) {
+                console.log('⚠️ Erro ao salvar referência da mensagem:', dbError);
+            }
+
+            // Confirmar sucesso
+            await interaction.editReply({
+                embeds: [{
+                    color: 0x2ecc71,
+                    title: '✅ Embed Reenviado com Sucesso!',
+                    description: `O embed do produto **${product.name}** foi enviado para ${channel}!\n\n` +
+                                `**Canal:** ${channel}\n` +
+                                `**Produto:** ${product.name}\n` +
+                                `**Preço:** ${Helpers.formatPrice(product.price)}\n` +
+                                `**Estoque:** ${product.stock} unidades`,
+                    footer: { text: 'O embed está agora disponível no canal selecionado' },
+                    timestamp: new Date().toISOString()
+                }]
+            });
+
+            console.log(`✅ Embed do produto "${product.name}" reenviado para canal ${channel.name} por ${interaction.user.username}`);
+
+        } catch (error) {
+            console.error('❌ Erro ao reenviar embed:', error);
+            
+            try {
+                await interaction.editReply({
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao reenviar embed do produto!')]
+                });
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro de reenvio:', replyError);
+            }
+        }
+    }
+
     // Mostrar modal de confirmação de pagamento
     static async showPaymentConfirmationModal(interaction) {
         const saleId = interaction.customId.split('_')[2];
@@ -2240,6 +2423,9 @@ class InteractionHandler {
                     break;
                 case 'stock':
                     await this.showStockModal(interaction, product);
+                    break;
+                case 'resend':
+                    await this.showChannelSelectForResend(interaction, product);
                     break;
             }
         } catch (error) {

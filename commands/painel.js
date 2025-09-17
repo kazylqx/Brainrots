@@ -61,16 +61,21 @@ module.exports = {
                     .setCustomId('admin_delete-product')
                     .setLabel('Excluir Produto')
                     .setStyle(ButtonStyle.Danger)
-                    .setEmoji('❌')
-            );
-
-        const row2 = new ActionRowBuilder()
-            .addComponents(
+                    .setEmoji('❌'),
+                new ButtonBuilder()
+                    .setCustomId('admin_resend-embed')
+                    .setLabel('Reenviar Embed')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setEmoji('📤'),
                 new ButtonBuilder()
                     .setCustomId('admin_manage-stock')
                     .setLabel('Gerenciar Estoque')
                     .setStyle(ButtonStyle.Secondary)
-                    .setEmoji('📦'),
+                    .setEmoji('📦')
+            );
+
+        const row2 = new ActionRowBuilder()
+            .addComponents(
                 new ButtonBuilder()
                     .setCustomId('admin_view-sales')
                     .setLabel('Ver Vendas')
