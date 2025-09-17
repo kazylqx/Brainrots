@@ -1574,7 +1574,17 @@ class InteractionHandler {
                 await interaction.deferReply({ flags: 64 });
             }
             // ID da categoria específica para produtos
-            const PRODUCTS_CATEGORY_ID = process.env.PRODUCTS_CHANNEL_ID;
+            const PRODUCTS_CATEGORY_ID = process.env.PRODUCTS_CHANNEL_ID || '1416922927328395304';
+            console.log(`🔍 Debug - PRODUCTS_CHANNEL_ID: ${process.env.PRODUCTS_CHANNEL_ID}`);
+            console.log(`🔍 Debug - PRODUCTS_CATEGORY_ID usado: ${PRODUCTS_CATEGORY_ID}`);
+            
+            // Debug: listar todos os canais e suas categorias
+            console.log('🔍 Debug - Todos os canais de texto:');
+            interaction.guild.channels.cache
+                .filter(channel => channel.type === 0)
+                .forEach(channel => {
+                    console.log(`  Canal: ${channel.name} | Parent: ${channel.parentId} | Categoria: ${channel.parent?.name || 'Sem categoria'}`);
+                });
             
             // Buscar canais de texto da categoria específica
             const channels = interaction.guild.channels.cache
