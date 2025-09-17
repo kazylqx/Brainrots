@@ -75,6 +75,8 @@ class InteractionHandler {
                     await this.handlePaymentInteraction(interaction);
                 } else if (customId.startsWith('ticket_')) {
                     await this.handleTicketInteraction(interaction);
+                } else if (customId === 'open_ticket_support') {
+                    await this.openSupportTicket(interaction);
                 }
             }
 
@@ -1343,7 +1345,8 @@ class InteractionHandler {
                 });
             }
 
-            // Verificar estoque
+            // Recalcular total do carrinho (garantir que está correto)
+            let calculatedTotal = 0;
             for (const item of cartItems) {
                 const product = await Database.getProductById(item.product_id);
                 if (!product || product.stock < item.quantity) {
@@ -1351,6 +1354,14 @@ class InteractionHandler {
                         embeds: [Helpers.createErrorEmbed(`❌ Produto "${item.name}" não tem estoque suficiente!`)]
                     });
                 }
+                calculatedTotal += item.quantity * item.unit_price;
+            }
+            
+            // Atualizar total do carrinho se necessário
+            if (cart.total_amount !== calculatedTotal) {
+                console.log(`🔧 Corrigindo total do carrinho: ${cart.total_amount} → ${calculatedTotal}`);
+                await Database.updateCartTotal(cart.id, calculatedTotal);
+                cart.total_amount = calculatedTotal;
             }
 
             // Criar canal privado do carrinho
@@ -1594,10 +1605,128 @@ class InteractionHandler {
         }
     }
 
-    // Confirmar pagamento - abre modal de confirmação
+    // Confirmar pagamento - mostra tutorial sobre ticket
     static async confirmPayment(interaction) {
-        // Redirecionar para o modal
-        return await this.showPaymentConfirmationModal(interaction);
+        const saleId = interaction.customId.split('_')[2];
+        
+        try {
+            // Buscar dados da venda
+            const sale = await Database.getSaleById(saleId);
+            if (!sale) {
+                return await interaction.reply({
+                    embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')],
+                    flags: 64
+                });
+            }
+
+            if (sale.payment_status === 'completed') {
+                return await interaction.reply({
+                    embeds: [Helpers.createWarningEmbed('⚠️ Esta venda já foi confirmada!')],
+                    flags: 64
+                });
+            }
+
+            // Mostrar tutorial sobre ticket
+            const tutorialEmbed = {
+                color: 0x3498db,
+                title: '📋 Como Confirmar seu Pagamento',
+                description: `**Você fez o pagamento PIX?** Siga estes passos para receber seus produtos:\n\n` +
+                            `**1. 🎫 Abra um Ticket**\n` +
+                            `• Vá ao canal de suporte/tickets do servidor\n` +
+                            `• Clique no botão "Criar Ticket"\n` +
+                            `• Título: "Comprovante PIX - Pedido ${saleId}"\n\n` +
+                            `**2. 📸 Envie seu Comprovante**\n` +
+                            `• Foto ou print do comprovante PIX\n` +
+                            `• Certifique-se que está legível\n\n` +
+                            `**3. 📋 Inclua estas Informações:**\n` +
+                            `• **ID da Venda:** \`${saleId}\`\n` +
+                            `• **Valor Pago:** R$ ${parseFloat(sale.total_amount).toFixed(2).replace('.', ',')}\n` +
+                            `• **Seu Username:** ${sale.username}\n\n` +
+                            `**4. ⏰ Aguarde a Verificação**\n` +
+                            `• Nossa equipe verificará em até 30 minutos\n` +
+                            `• Você receberá seus produtos via DM\n\n` +
+                            `⚠️ **IMPORTANTE:** Só envie comprovantes reais! Tentativas de fraude resultam em banimento.`,
+                footer: { 
+                    text: 'Após enviar o comprovante no ticket, aguarde nossa verificação' 
+                },
+                timestamp: new Date().toISOString(),
+                fields: [
+                    {
+                        name: '💰 Valor Total',
+                        value: `R$ ${parseFloat(sale.total_amount).toFixed(2).replace('.', ',')}`,
+                        inline: true
+                    },
+                    {
+                        name: '🆔 ID da Venda',
+                        value: `\`${saleId}\``,
+                        inline: true
+                    },
+                    {
+                        name: '👤 Cliente',
+                        value: sale.username,
+                        inline: true
+                    }
+                ]
+            };
+
+            const ticketButton = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('open_ticket_support')
+                        .setLabel('🎫 Abrir Ticket de Suporte')
+                        .setStyle(ButtonStyle.Primary)
+                        .setEmoji('🎫')
+                );
+
+            await interaction.reply({
+                embeds: [tutorialEmbed],
+                components: [ticketButton],
+                flags: 64
+            });
+
+        } catch (error) {
+            console.error('❌ Erro ao mostrar tutorial de pagamento:', error);
+            await interaction.reply({
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar tutorial!')],
+                flags: 64
+            });
+        }
+    }
+
+    // Abrir ticket de suporte
+    static async openSupportTicket(interaction) {
+        try {
+            await interaction.reply({
+                embeds: [{
+                    color: 0x3498db,
+                    title: '🎫 Como Abrir um Ticket de Suporte',
+                    description: `Para abrir um ticket de suporte, siga estes passos:\n\n` +
+                                `**1. 🎫 Vá ao Canal de Suporte**\n` +
+                                `• Procure por um canal chamado "suporte", "tickets" ou "atendimento"\n` +
+                                `• Clique no botão "Criar Ticket" ou "Abrir Ticket"\n\n` +
+                                `**2. 📝 Preencha as Informações**\n` +
+                                `• Título: "Comprovante PIX - [Seu Nome]"\n` +
+                                `• Descreva brevemente seu problema\n\n` +
+                                `**3. 📸 Envie os Documentos**\n` +
+                                `• Comprovante PIX (foto/print)\n` +
+                                `• ID da sua venda\n` +
+                                `• Valor pago\n\n` +
+                                `**⚠️ Lembre-se de incluir:**\n` +
+                                `• Comprovante PIX (foto/print)\n` +
+                                `• ID da sua venda\n` +
+                                `• Valor pago\n` +
+                                `• Seu username Discord`,
+                    footer: { text: 'Nossa equipe responderá em até 30 minutos' }
+                }],
+                flags: 64
+            });
+        } catch (error) {
+            console.error('❌ Erro ao abrir tutorial de ticket:', error);
+            await interaction.reply({
+                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar tutorial!')],
+                flags: 64
+            });
+        }
     }
 
     // Entregar produtos ao cliente
