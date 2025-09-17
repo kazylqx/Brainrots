@@ -179,12 +179,29 @@ client.once('ready', async () => {
         }
     }, 5 * 60 * 1000); // 5 minutos
     
-    // Heartbeat a cada minuto
-    setInterval(() => {
-        if (!client.isReady() || client.ws.ping > 2000) {
-            console.error(`💔 Bot não responsivo - Ping: ${client.ws.ping}ms, Ready: ${client.isReady()}`);
+    // Keep-alive para manter conexões ativas
+    setInterval(async () => {
+        try {
+            // Ping simples no banco para manter conexão ativa
+            const Database = require('./utils/database');
+            await Database.getProducts(); // Operação leve para manter conexão
+            
+            // Verificar se ainda temos acesso aos canais
+            const guild = client.guilds.cache.first();
+            if (guild) {
+                guild.channels.cache.size; // Acesso simples ao cache
+            }
+            
+        } catch (error) {
+            console.warn('⚠️ Erro no keep-alive:', error.message);
         }
-    }, 60 * 1000); // 1 minuto
+    }, 2 * 60 * 1000); // A cada 2 minutos
+    
+    // Auto-restart preventivo a cada 2 horas
+    setTimeout(() => {
+        console.log('🔄 Auto-restart preventivo após 2 horas de funcionamento');
+        process.exit(0);
+    }, 2 * 60 * 60 * 1000); // 2 horas
 });
 
 // Handler para erros não capturados
@@ -240,15 +257,85 @@ process.on('SIGINT', () => {
 
 // Monitorar event loop lag
 let lastCheck = Date.now();
-setInterval(() => {
+const lagInterval = setInterval(() => {
     const now = Date.now();
     const lag = now - lastCheck - 1000; // Esperado: 1000ms
     lastCheck = now;
     
     if (lag > 100) {
         console.warn(`⚠️ Event loop lag: ${lag}ms`);
+        
+        // Se lag muito alto, forçar limpeza
+        if (lag > 500) {
+            console.error(`🚨 Event loop crítico (${lag}ms), limpando recursos...`);
+            
+            // Limpeza agressiva
+            if (client.channels) client.channels.cache.clear();
+            if (client.users) client.users.cache.clear();
+            if (client.guilds) {
+                client.guilds.cache.forEach(guild => {
+                    if (guild.members) guild.members.cache.clear();
+                    if (guild.channels) guild.channels.cache.clear();
+                });
+            }
+            
+            if (global.gc) {
+                global.gc();
+                console.log('🗑️ Garbage collection forçado por lag');
+            }
+        }
     }
 }, 1000);
+
+// Heartbeat mais robusto
+let heartbeatFailures = 0;
+const heartbeatInterval = setInterval(() => {
+    try {
+        const isReady = client.isReady();
+        const ping = client.ws.ping;
+        
+        if (!isReady || ping > 2000 || ping === -1) {
+            heartbeatFailures++;
+            console.error(`💔 Bot não responsivo (${heartbeatFailures}/3) - Ping: ${ping}ms, Ready: ${isReady}`);
+            
+            // Após 3 falhas consecutivas, reiniciar
+            if (heartbeatFailures >= 3) {
+                console.error('🚨 CRÍTICO: Bot não responsivo por muito tempo, reiniciando...');
+                process.exit(1);
+            }
+        } else {
+            // Reset contador se tudo ok
+            if (heartbeatFailures > 0) {
+                console.log(`✅ Bot recuperou responsividade`);
+                heartbeatFailures = 0;
+            }
+        }
+    } catch (error) {
+        console.error('❌ Erro no heartbeat:', error);
+        heartbeatFailures++;
+    }
+}, 30 * 1000); // A cada 30 segundos
+
+// Monitorar conexão WebSocket
+client.on('shardDisconnect', (event, id) => {
+    console.warn(`🔌 Shard ${id} desconectado:`, event);
+});
+
+client.on('shardReconnecting', (id) => {
+    console.log(`🔄 Shard ${id} reconectando...`);
+});
+
+client.on('shardResume', (id, replayedEvents) => {
+    console.log(`✅ Shard ${id} reconectado (${replayedEvents} eventos)`);
+});
+
+client.on('error', (error) => {
+    console.error('❌ Erro do cliente Discord:', error);
+});
+
+client.on('warn', (warning) => {
+    console.warn('⚠️ Aviso do Discord:', warning);
+});
 
 // Fazer login no Discord
 client.login(process.env.DISCORD_TOKEN);

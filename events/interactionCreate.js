@@ -3,6 +3,9 @@ const { Events } = require('discord.js');
 module.exports = {
     name: Events.InteractionCreate,
     async execute(interaction) {
+        // Log de atividade para debug
+        console.log(`🔄 Interação recebida: ${interaction.type} | User: ${interaction.user.username} | Time: ${new Date().toISOString()}`);
+        
         // Comandos slash
         if (interaction.isChatInputCommand()) {
             const command = interaction.client.commands.get(interaction.commandName);

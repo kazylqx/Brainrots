@@ -5,6 +5,16 @@ class SupabaseDatabase {
         this.supabase = null;
     }
 
+    // Wrapper para operações com timeout
+    async withTimeout(operation, timeoutMs = 10000) {
+        return Promise.race([
+            operation,
+            new Promise((_, reject) => 
+                setTimeout(() => reject(new Error(`Operação timeout após ${timeoutMs}ms`)), timeoutMs)
+            )
+        ]);
+    }
+
     // Inicializar conexão Supabase
     async init() {
         try {
@@ -18,8 +28,11 @@ class SupabaseDatabase {
 
             this.supabase = createClient(supabaseUrl, supabaseKey);
             
-            // Testar conexão
-            const { data, error } = await this.supabase.from('products').select('count').limit(1);
+            // Testar conexão com timeout
+            const { data, error } = await this.withTimeout(
+                this.supabase.from('products').select('count').limit(1),
+                5000 // 5 segundos
+            );
             if (error && error.code !== 'PGRST116') { // PGRST116 = table doesn't exist (normal)
                 throw error;
             }
