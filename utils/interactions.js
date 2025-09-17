@@ -728,7 +728,7 @@ class InteractionHandler {
             const totalAmount = parseFloat(sale.total_amount) || 0;
             const valueInput = new TextInputBuilder()
                 .setCustomId('paid_value')
-                .setLabel(`Valor Pago (R$) - Esperado: ${Helpers.formatPrice(totalAmount)}`)
+                .setLabel('Valor Pago (R$)')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true)
                 .setPlaceholder(`Ex: ${totalAmount.toFixed(2).replace('.', ',')}`)
@@ -2981,28 +2981,6 @@ class InteractionHandler {
                 flags: 64
             });
         }
-    }
-
-
-    // Modal para gerenciar estoque
-    static async showStockModal(interaction, product) {
-        const modal = new ModalBuilder()
-            .setCustomId(`modal_stock_${product.id}`)
-            .setTitle(`📦 Gerenciar Estoque - ${product.name}`);
-
-        const stockInput = new TextInputBuilder()
-            .setCustomId('new_stock')
-            .setLabel('Novo Estoque')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-            .setValue(product.stock.toString())
-            .setPlaceholder('Ex: 100');
-
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(stockInput)
-        );
-
-        await interaction.showModal(modal);
     }
 
     // Processar atualização de estoque
