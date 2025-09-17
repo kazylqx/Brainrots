@@ -275,7 +275,7 @@ class InteractionHandler {
                 await this.cancelPayment(interaction, orderId);
                 break;
             case 'confirm':
-                await this.processPaymentConfirmation(interaction, orderId);
+                await this.confirmPayment(interaction);
                 break;
             default:
                 await interaction.reply({
@@ -1608,10 +1608,13 @@ class InteractionHandler {
     // Confirmar pagamento - mostra tutorial sobre ticket
     static async confirmPayment(interaction) {
         const saleId = interaction.customId.split('_')[2];
+        console.log(`🔍 Debug confirmPayment - CustomId: ${interaction.customId}, SaleId extraído: ${saleId}`);
         
         try {
             // Buscar dados da venda
+            console.log(`🔍 Buscando venda com ID: ${saleId}`);
             const sale = await Database.getSaleById(saleId);
+            console.log(`📦 Resultado da busca:`, sale);
             if (!sale) {
                 return await interaction.reply({
                     embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')],
