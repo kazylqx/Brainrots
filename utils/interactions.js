@@ -752,25 +752,33 @@ class InteractionHandler {
     // Processar confirmação de pagamento
     static async processPaymentConfirmation(interaction, saleId) {
         try {
-            const paidValueString = interaction.fields.getTextInputValue('paid_value');
-            const paymentProof = interaction.fields.getTextInputValue('payment_proof') || '';
-
-            const paidValue = parseFloat(paidValueString.replace(',', '.'));
+            // Defer reply se ainda não foi deferido
+            if (!interaction.deferred && !interaction.replied && interaction.isModalSubmit()) {
+                await interaction.deferReply({ flags: 64 });
+            }
+            // Verificar se é um modal submission ou botão
+            let paidValue, paymentProof = '';
             
-            if (isNaN(paidValue) || paidValue <= 0) {
-                return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Valor pago inválido!')],
-                    flags: 64
-                });
+            if (interaction.isModalSubmit()) {
+                // Vem do modal de confirmação
+                const paidValueString = interaction.fields.getTextInputValue('paid_value');
+                paymentProof = interaction.fields.getTextInputValue('payment_proof') || '';
+                paidValue = parseFloat(paidValueString.replace(',', '.'));
+                
+                if (isNaN(paidValue) || paidValue <= 0) {
+                    const errorMsg = { embeds: [Helpers.createErrorEmbed('❌ Valor pago inválido!')], flags: 64 };
+                    return interaction.deferred ? await interaction.editReply(errorMsg) : await interaction.reply(errorMsg);
+                }
+            } else {
+                // Vem de um botão - redirecionar para modal
+                return await this.showPaymentConfirmationModal(interaction);
             }
 
             // Buscar venda
-            const sale = await Database.db.get('SELECT * FROM sales WHERE id = ?', [saleId]);
+            const sale = await Database.getSaleById(saleId);
             if (!sale) {
-                return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')],
-                    flags: 64
-                });
+                const errorMsg = { embeds: [Helpers.createErrorEmbed('❌ Venda não encontrada!')], flags: 64 };
+                return interaction.deferred ? await interaction.editReply(errorMsg) : await interaction.reply(errorMsg);
             }
 
             // Verificar se o valor pago corresponde EXATAMENTE ao valor total
@@ -778,7 +786,7 @@ class InteractionHandler {
             const tolerance = 0.01; // Tolerância de 1 centavo
 
             if (Math.abs(paidValue - expectedValue) > tolerance) {
-                return await interaction.reply({
+                const errorMsg = {
                     embeds: [{
                         color: 0xe74c3c,
                         title: '❌ Valor Incorreto',
@@ -789,7 +797,8 @@ class InteractionHandler {
                         footer: { text: 'Entre em contato com o suporte se houver algum problema' }
                     }],
                     flags: 64
-                });
+                };
+                return interaction.deferred ? await interaction.editReply(errorMsg) : await interaction.reply(errorMsg);
             }
 
             // Atualizar status da venda para pago
@@ -820,7 +829,7 @@ class InteractionHandler {
             // Atualizar status do carrinho
             await Database.updateCartStatus(sale.cart_id, 'completed');
 
-            await interaction.reply({
+            const successMsg = {
                 embeds: [{
                     color: 0x2ecc71,
                     title: '✅ Pagamento Confirmado!',
@@ -831,7 +840,13 @@ class InteractionHandler {
                     timestamp: new Date().toISOString()
                 }],
                 flags: 64
-            });
+            };
+            
+            if (interaction.deferred) {
+                await interaction.editReply(successMsg);
+            } else {
+                await interaction.reply(successMsg);
+            }
 
             // Log da venda
             const Logger = require('./logger');
@@ -845,10 +860,21 @@ class InteractionHandler {
 
         } catch (error) {
             console.error('❌ Erro ao processar confirmação:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao processar confirmação!')],
-                flags: 64
-            });
+            
+            try {
+                const errorMsg = {
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao processar confirmação!')],
+                    flags: 64
+                };
+                
+                if (interaction.deferred) {
+                    await interaction.editReply(errorMsg);
+                } else if (!interaction.replied) {
+                    await interaction.reply(errorMsg);
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro de confirmação:', replyError);
+            }
         }
     }
 
