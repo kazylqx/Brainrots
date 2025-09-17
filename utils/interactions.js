@@ -1569,8 +1569,12 @@ class InteractionHandler {
     // Mostrar seleção de canal para reenviar embed
     static async showChannelSelectForResend(interaction, product) {
         try {
+            // Defer reply para evitar timeout
+            if (!interaction.deferred && !interaction.replied) {
+                await interaction.deferReply({ flags: 64 });
+            }
             // ID da categoria específica para produtos
-            const PRODUCTS_CATEGORY_ID = '1416922927328395304';
+            const PRODUCTS_CATEGORY_ID = process.env.PRODUCTS_CHANNEL_ID;
             
             // Buscar canais de texto da categoria específica
             const channels = interaction.guild.channels.cache
@@ -1588,10 +1592,11 @@ class InteractionHandler {
             console.log(`🔍 Encontrados ${channels.length} canais na categoria ${PRODUCTS_CATEGORY_ID}`);
 
             if (channels.length === 0) {
-                return await interaction.reply({
+                const errorMsg = {
                     embeds: [Helpers.createErrorEmbed('❌ Nenhum canal encontrado na categoria de produtos!\n\nVerifique se existem canais de texto na categoria especificada.')],
                     flags: 64
-                });
+                };
+                return interaction.deferred ? await interaction.editReply(errorMsg) : await interaction.reply(errorMsg);
             }
 
             const selectMenu = new StringSelectMenuBuilder()
@@ -1601,7 +1606,7 @@ class InteractionHandler {
 
             const row = new ActionRowBuilder().addComponents(selectMenu);
 
-            await interaction.reply({
+            const replyMsg = {
                 embeds: [{
                     color: 0x3498db,
                     title: '📤 Reenviar Embed do Produto',
@@ -1614,14 +1619,37 @@ class InteractionHandler {
                 }],
                 components: [row],
                 flags: 64
-            });
+            };
+            
+            if (interaction.deferred) {
+                await interaction.editReply(replyMsg);
+            } else {
+                await interaction.reply(replyMsg);
+            }
 
         } catch (error) {
             console.error('❌ Erro ao mostrar seleção de canal:', error);
-            await interaction.reply({
-                embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar canais!')],
-                flags: 64
-            });
+            
+            // Verificar se é erro de interação expirada
+            if (error.code === 10062 || error.code === 40060) {
+                console.log(`⚠️ Interação ${interaction.id} expirou ou já foi processada (código: ${error.code})`);
+                return;
+            }
+            
+            try {
+                const errorMsg = {
+                    embeds: [Helpers.createErrorEmbed('❌ Erro ao carregar canais!')],
+                    flags: 64
+                };
+                
+                if (interaction.deferred) {
+                    await interaction.editReply(errorMsg);
+                } else if (!interaction.replied) {
+                    await interaction.reply(errorMsg);
+                }
+            } catch (replyError) {
+                console.error('❌ Erro ao responder erro de seleção de canal:', replyError);
+            }
         }
     }
 
