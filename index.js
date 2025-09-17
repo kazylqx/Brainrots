@@ -24,16 +24,30 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
+    const memUsage = process.memoryUsage();
     res.json({ 
         status: 'online', 
         bot: client.user?.tag || 'Initializing...',
         uptime: process.uptime(),
+        memory: {
+            rss: `${Math.round(memUsage.rss / 1024 / 1024)}MB`,
+            heapUsed: `${Math.round(memUsage.heapUsed / 1024 / 1024)}MB`,
+            heapTotal: `${Math.round(memUsage.heapTotal / 1024 / 1024)}MB`
+        },
+        guilds: client.guilds?.cache.size || 0,
+        ping: client.ws.ping || 0,
         timestamp: new Date().toISOString()
     });
 });
 
 app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', uptime: process.uptime() });
+    const isHealthy = client.isReady() && client.ws.ping < 1000;
+    res.status(isHealthy ? 200 : 503).json({ 
+        status: isHealthy ? 'healthy' : 'unhealthy', 
+        uptime: process.uptime(),
+        ping: client.ws.ping || 0,
+        ready: client.isReady()
+    });
 });
 
 app.listen(PORT, () => {
@@ -120,17 +134,121 @@ client.once('ready', async () => {
     
     // Definir status do bot
     client.user.setActivity('🛒 Vendas | /painel', { type: 'WATCHING' });
+    
+    // Monitoramento de memória a cada 5 minutos
+    setInterval(() => {
+        const memUsage = process.memoryUsage();
+        const memUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
+        
+        console.log(`📊 Memória: ${memUsedMB}MB | Ping: ${client.ws.ping}ms | Uptime: ${Math.round(process.uptime() / 60)}min`);
+        
+        // Limpeza de cache a cada 15 minutos
+        if (process.uptime() % (15 * 60) < 300) { // A cada 15min ±5min
+            console.log('🧹 Limpando caches...');
+            
+            // Limpar cache de canais antigos
+            client.channels.cache.sweep(channel => !channel.guild);
+            
+            // Limpar cache de usuários antigos (manter apenas os necessários)
+            client.users.cache.sweep(user => user.id !== client.user.id);
+            
+            // Forçar garbage collection se disponível
+            if (global.gc) {
+                global.gc();
+                console.log('🗑️ Garbage collection executado');
+            }
+        }
+        
+        // Alerta se memória muito alta (>400MB)
+        if (memUsedMB > 400) {
+            console.warn(`⚠️ ALERTA: Uso de memória alto: ${memUsedMB}MB`);
+            
+            // Limpeza agressiva
+            client.channels.cache.clear();
+            client.users.cache.clear();
+            
+            if (global.gc) {
+                global.gc();
+            }
+        }
+        
+        // Auto-restart se memória crítica (>500MB)
+        if (memUsedMB > 500) {
+            console.error(`🚨 CRÍTICO: Memória muito alta (${memUsedMB}MB), reiniciando...`);
+            process.exit(1);
+        }
+    }, 5 * 60 * 1000); // 5 minutos
+    
+    // Heartbeat a cada minuto
+    setInterval(() => {
+        if (!client.isReady() || client.ws.ping > 2000) {
+            console.error(`💔 Bot não responsivo - Ping: ${client.ws.ping}ms, Ready: ${client.isReady()}`);
+        }
+    }, 60 * 1000); // 1 minuto
 });
 
 // Handler para erros não capturados
-process.on('unhandledRejection', error => {
-    console.error('❌ Erro não tratado:', error);
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Promise rejeitada não tratada:', reason);
+    console.error('Promise:', promise);
 });
 
 process.on('uncaughtException', error => {
     console.error('❌ Exceção não capturada:', error);
+    console.error('Stack:', error.stack);
+    
+    // Tentar fazer cleanup antes de sair
+    try {
+        if (client.isReady()) {
+            client.destroy();
+        }
+    } catch (cleanupError) {
+        console.error('❌ Erro no cleanup:', cleanupError);
+    }
+    
     process.exit(1);
 });
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('📴 SIGTERM recebido, fazendo shutdown graceful...');
+    
+    try {
+        if (client.isReady()) {
+            client.destroy();
+        }
+    } catch (error) {
+        console.error('❌ Erro no shutdown:', error);
+    }
+    
+    process.exit(0);
+});
+
+process.on('SIGINT', () => {
+    console.log('📴 SIGINT recebido, fazendo shutdown graceful...');
+    
+    try {
+        if (client.isReady()) {
+            client.destroy();
+        }
+    } catch (error) {
+        console.error('❌ Erro no shutdown:', error);
+    }
+    
+    process.exit(0);
+});
+
+// Monitorar event loop lag
+let lastCheck = Date.now();
+setInterval(() => {
+    const now = Date.now();
+    const lag = now - lastCheck - 1000; // Esperado: 1000ms
+    lastCheck = now;
+    
+    if (lag > 100) {
+        console.warn(`⚠️ Event loop lag: ${lag}ms`);
+    }
+}, 1000);
 
 // Fazer login no Discord
 client.login(process.env.DISCORD_TOKEN);
