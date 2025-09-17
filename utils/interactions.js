@@ -1569,9 +1569,15 @@ class InteractionHandler {
     // Mostrar seleção de canal para reenviar embed
     static async showChannelSelectForResend(interaction, product) {
         try {
-            // Buscar canais de texto do servidor
+            // ID da categoria específica para produtos
+            const PRODUCTS_CATEGORY_ID = '1416922927328395304';
+            
+            // Buscar canais de texto da categoria específica
             const channels = interaction.guild.channels.cache
-                .filter(channel => channel.type === 0) // Text channels
+                .filter(channel => 
+                    channel.type === 0 && // Text channels
+                    channel.parentId === PRODUCTS_CATEGORY_ID // Apenas da categoria específica
+                )
                 .map(channel => ({
                     label: `#${channel.name}`,
                     description: `Canal: ${channel.name}`,
@@ -1579,9 +1585,11 @@ class InteractionHandler {
                 }))
                 .slice(0, 25); // Máximo 25 opções
 
+            console.log(`🔍 Encontrados ${channels.length} canais na categoria ${PRODUCTS_CATEGORY_ID}`);
+
             if (channels.length === 0) {
                 return await interaction.reply({
-                    embeds: [Helpers.createErrorEmbed('❌ Nenhum canal de texto encontrado!')],
+                    embeds: [Helpers.createErrorEmbed('❌ Nenhum canal encontrado na categoria de produtos!\n\nVerifique se existem canais de texto na categoria especificada.')],
                     flags: 64
                 });
             }
@@ -1600,7 +1608,7 @@ class InteractionHandler {
                     description: `**Produto:** ${product.name}\n` +
                                 `**Preço:** ${Helpers.formatPrice(product.price)}\n` +
                                 `**Estoque:** ${product.stock} unidades\n\n` +
-                                `Selecione o canal onde deseja reenviar o embed deste produto:`,
+                                `Selecione o canal da categoria de produtos onde deseja reenviar o embed:`,
                     thumbnail: { url: product.image_url || null },
                     footer: { text: 'O embed será enviado no canal selecionado' }
                 }],
