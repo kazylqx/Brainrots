@@ -1556,14 +1556,19 @@ class InteractionHandler {
             await cartChannel.send({
                 embeds: [{
                     color: 0x3498db,
-                    title: '📋 PIX Copia e Cola',
-                    description: `\`\`\`${pixData.payload}\`\`\`\n\n` +
-                                `⚠️ **Importante:**\n` +
+                    title: '📋 PIX COPIA E COLA',
+                    description: `⚠️ **Importante:**\n` +
                                 `• Pague exatamente **${Helpers.formatPrice(total)}**\n` +
                                 `• Após o pagamento, clique em "Confirmar Pagamento"\n` +
-                                `• Este carrinho expira em 24 horas`,
+                                `• Este carrinho expira em 24 horas\n\n` +
+                                `📱 **Para copiar no celular:** Toque e segure no código abaixo`,
                     footer: { text: 'Escaneie o QR Code acima ou copie e cole este código no seu app do banco' }
                 }]
+            });
+
+            // Enviar código PIX em mensagem separada para facilitar cópia
+            await cartChannel.send({
+                content: `**📋 CÓDIGO PIX:**\n${pixData.payload}`
             });
 
             await interaction.editReply({
@@ -3376,15 +3381,20 @@ class InteractionHandler {
         await cartChannel.send({
             embeds: [{
                 color: 0x3498db,
-                title: '📋 PIX Copia e Cola',
-                description: `\`\`\`${pixData.payload}\`\`\`\n\n` +
-                            `⚠️ **Importante:**\n` +
+                title: '📋 PIX COPIA E COLA',
+                description: `⚠️ **Importante:**\n` +
                             `• Pague exatamente **${Helpers.formatPrice(total)}**\n` +
                             `• Após o pagamento, clique em "📎 Enviar Comprovante"\n` +
                             `• Nossa equipe verificará e liberará seus produtos\n` +
-                            `• Este carrinho expira em 1 hora`,
+                            `• Este carrinho expira em 1 hora\n\n` +
+                            `📱 **Para copiar no celular:** Toque e segure no código abaixo`,
                 footer: { text: 'Escaneie o QR Code acima ou copie e cole este código no seu app do banco' }
             }]
+        });
+
+        // Enviar código PIX em mensagem separada para facilitar cópia
+        await cartChannel.send({
+            content: `**📋 CÓDIGO PIX:**\n${pixData.payload}`
         });
 
         await interaction.editReply({

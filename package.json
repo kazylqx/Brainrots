@@ -4,9 +4,10 @@
   "description": "Bot de vendas para Discord com sistema de carrinho e PIX",
   "main": "index.js",
   "scripts": {
-    "start": "node --expose-gc index.js",
-    "dev": "nodemon --expose-gc index.js",
-    "start-basic": "node index.js"
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   },
   "keywords": [
     "discord",
@@ -25,8 +26,5 @@
     "qrcode": "^1.5.3",
     "sqlite3": "^5.1.6",
     "uuid": "^9.0.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
   }
 }
